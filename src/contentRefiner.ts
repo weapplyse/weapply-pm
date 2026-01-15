@@ -7,11 +7,75 @@ const openai = new OpenAI({
   apiKey: config.openaiApiKey,
 });
 
-// Available labels in WeTest team - use exact names from Linear API
+// Available labels for development agency - use exact names from Linear API
 const AVAILABLE_LABELS = {
-  type: ['Bug', 'Feature', 'Improvement', 'Task', 'Research', 'Epic', 'Change request'],
-  area: ['Frontend', 'Backend', 'Database', 'Admin', 'API', 'Devops', 'UX/UI'],
-  owner: ['Software', 'Production', 'Hardware', 'Embedded', 'Rollout'],
+  // Type of work (pick ONE)
+  type: [
+    'Bug',           // Something broken
+    'Feature',       // New functionality
+    'Improvement',   // Enhancement to existing
+    'Task',          // General work item
+    'Support',       // Support request
+    'Meeting',       // Meeting notes/follow-up
+    'Documentation', // Docs updates
+    'Maintenance',   // Regular maintenance
+    'Hotfix',        // Urgent production fix
+    'Refactor',      // Code refactoring
+  ],
+  // Department (pick ONE)
+  dept: [
+    'Development',   // Dev team
+    'Design',        // Design/UX team
+    'Project Mgmt',  // Project management
+    'Accounting',    // Finance/accounting
+    'Sales',         // Sales/BD
+    'Operations',    // Ops/DevOps
+  ],
+  // Client status (pick ONE if applicable)
+  client: [
+    'New Lead',      // Potential new client
+    'Active Client', // Current paying client
+    'Prospect',      // In sales pipeline
+    'Former Client', // Past client
+    'Internal',      // Internal company work
+  ],
+  // Tech stack (pick ONE)
+  tech: [
+    'Frontend',      // UI, React, browser
+    'Backend',       // API, server, business logic
+    'Mobile',        // iOS, Android, React Native
+    'Database',      // PostgreSQL, data issues
+    'Infrastructure',// AWS, servers, deployment
+    'Integration',   // Third-party integrations
+    'Security',      // Security related
+    'AI/ML',         // AI/ML features
+  ],
+  // Project phase (pick ONE if applicable)
+  phase: [
+    'Discovery',     // Requirements gathering
+    'Planning',      // Project planning
+    'In Development',// Active development
+    'Review',        // Code/client review
+    'Testing',       // QA phase
+    'Deployment',    // Launch
+    'Post-Launch',   // Maintenance/support
+  ],
+  // Billing (pick if finance related)
+  billing: [
+    'Quote',         // Estimate needed
+    'Invoice',       // Invoice related
+    'Payment',       // Payment tracking
+    'Contract',      // Contract/agreement
+    'Overdue',       // Overdue payment
+  ],
+  // Source (auto-set for emails)
+  source: [
+    'Email',         // From email
+    'Meeting Notes', // From meeting
+    'Chat',          // From Slack/Teams
+    'Phone',         // From phone call
+    'Portal',        // From client portal
+  ],
 };
 
 export async function refineEmailContent(email: EmailData): Promise<RefinedContent> {
@@ -32,16 +96,27 @@ Email Details:
 Email Content:
 ${truncatedText}
 
-AVAILABLE LABELS (use EXACT names, pick at most ONE from each group):
+AVAILABLE LABELS (use EXACT names, pick at most ONE from each category):
 
-Type (pick ONE - required):
-${AVAILABLE_LABELS.type.map(l => `  - ${l}`).join('\n')}
+TYPE (required - pick ONE):
+${AVAILABLE_LABELS.type.join(', ')}
 
-Tech Area (pick at most ONE if relevant):
-${AVAILABLE_LABELS.area.map(l => `  - ${l}`).join('\n')}
+DEPARTMENT (pick ONE if clear):
+${AVAILABLE_LABELS.dept.join(', ')}
 
-Owner (pick at most ONE if you know which team):
-${AVAILABLE_LABELS.owner.map(l => `  - ${l}`).join('\n')}
+CLIENT STATUS (pick ONE if applicable):
+${AVAILABLE_LABELS.client.join(', ')}
+
+TECH STACK (pick ONE if technical):
+${AVAILABLE_LABELS.tech.join(', ')}
+
+PROJECT PHASE (pick ONE if applicable):
+${AVAILABLE_LABELS.phase.join(', ')}
+
+BILLING (pick if finance-related):
+${AVAILABLE_LABELS.billing.join(', ')}
+
+Always include "Email" as source label since this comes from email.
 
 INSTRUCTIONS:
 1. Create a clear, actionable title (max 80 characters, no email prefixes like "Re:" or "Fwd:")
@@ -56,7 +131,7 @@ Format your response as JSON:
   "title": "actionable title",
   "description": "clean, well-formatted description focusing on the actual request/issue",
   "summary": "brief summary of what this ticket is about",
-  "suggestedLabels": ["Task", "Backend"],
+  "suggestedLabels": ["Bug", "Development", "Active Client", "Backend", "Email"],
   "suggestedPriority": 3,
   "actionItems": ["specific action 1", "specific action 2"],
   "suggestedAssignee": ""

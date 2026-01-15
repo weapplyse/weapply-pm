@@ -1,4 +1,4 @@
-# Weapply PM - Refinement Rules & Categorization Plan
+# Weapply PM - Refinement Rules & Categorization
 
 ## Current Flow (Working ✅)
 
@@ -24,8 +24,8 @@
 │  4. AI Refinement (OpenAI GPT-4o-mini)                          │
 │     → Clean title (remove Fwd:/Re:, make actionable)            │
 │     → Structured description (Summary, Action Items, Details)   │
-│     → Assign labels (Type, Area, Owner)                         │
-│     → Set priority (1-4)                                        │
+│     → Assign labels (Type, Dept, Client, Tech, Phase, Billing)  │
+│     → Set priority (1-4 based on urgency)                       │
 └─────────────────────────────────┬───────────────────────────────┘
                                   │
                                   ▼
@@ -37,38 +37,81 @@
 
 ---
 
-## Label Categories (WeTest Team)
+## Label Structure for Development Agency
 
-### Type Labels (Pick ONE - Required)
+### 🏷️ TYPE (Required - pick ONE)
+| Label | When to use | Color |
+|-------|-------------|-------|
+| **Bug** | Something is broken, errors | 🔴 Red |
+| **Feature** | New functionality request | 🟣 Purple |
+| **Improvement** | Enhancement to existing feature | 🔵 Blue |
+| **Task** | General work item | 🟢 Green |
+| **Support** | Support request or question | 🔵 Cyan |
+| **Meeting** | Meeting notes or follow-up | 🟠 Orange |
+| **Documentation** | Documentation updates | 🟢 Green |
+| **Maintenance** | Regular maintenance work | ⚪ Gray |
+| **Hotfix** | Urgent production fix | 🔴 Red |
+| **Refactor** | Code refactoring | 🔵 Indigo |
+
+### 🏢 DEPARTMENT (pick ONE if clear)
 | Label | When to use |
 |-------|-------------|
-| **Bug** | Something broken, errors, not working as expected |
-| **Feature** | New functionality request |
-| **Improvement** | Enhancement to existing feature |
-| **Task** | General work item, maintenance |
-| **Research** | Investigation, analysis needed |
-| **Epic** | Large multi-ticket initiative |
-| **Change request** | Modification to existing behavior |
+| **Development** | Dev team work |
+| **Design** | Design/UX team |
+| **Project Mgmt** | PM work |
+| **Accounting** | Finance/accounting |
+| **Sales** | Sales/business development |
+| **Operations** | DevOps/infrastructure |
 
-### Tech Area Labels (Pick ONE if relevant)
-| Label | When to use |
+### 👤 CLIENT STATUS (pick ONE if applicable)
+| Label | Description |
+|-------|-------------|
+| **New Lead** | Potential new client |
+| **Active Client** | Current paying client |
+| **Prospect** | In sales pipeline |
+| **Former Client** | Past client relationship |
+| **Internal** | Internal company work |
+
+### 💻 TECH STACK (pick ONE if technical)
+| Label | Description |
 |-------|-------------|
 | **Frontend** | UI, React, browser-related |
 | **Backend** | API, server, business logic |
+| **Mobile** | iOS, Android, React Native |
 | **Database** | PostgreSQL, data issues |
-| **Admin** | Admin panel related |
-| **API** | API endpoints, integrations |
-| **Devops** | Infrastructure, deployments |
-| **UX/UI** | Design, user experience |
+| **Infrastructure** | AWS, servers, deployment |
+| **Integration** | Third-party integrations |
+| **Security** | Security-related |
+| **AI/ML** | AI/ML features |
 
-### Owner Labels (Pick ONE if determinable)
+### 📅 PROJECT PHASE (pick ONE if applicable)
 | Label | Description |
 |-------|-------------|
-| **Software** | WeApply team |
-| **Production** | Shortlink + Cikoria |
-| **Hardware** | Shortlink |
-| **Embedded** | Cikoria |
-| **Rollout** | Full team |
+| **Discovery** | Initial requirements gathering |
+| **Planning** | Project planning and scoping |
+| **In Development** | Active development phase |
+| **Review** | Code review or client review |
+| **Testing** | QA and testing phase |
+| **Deployment** | Deployment and launch |
+| **Post-Launch** | Maintenance and support |
+
+### 💰 BILLING (pick if finance-related)
+| Label | Description |
+|-------|-------------|
+| **Quote** | Quote or estimate needed |
+| **Invoice** | Invoice related |
+| **Payment** | Payment tracking |
+| **Contract** | Contract or agreement |
+| **Overdue** | Overdue payment |
+
+### 📨 REQUEST SOURCE (auto-applied)
+| Label | Description |
+|-------|-------------|
+| **Email** | From email (auto for pm@weapply.se) |
+| **Meeting Notes** | From meeting |
+| **Chat** | From Slack/Teams |
+| **Phone** | From phone call |
+| **Portal** | From client portal |
 
 ---
 
@@ -76,163 +119,50 @@
 
 | Priority | Value | Criteria |
 |----------|-------|----------|
-| **Urgent** | 1 | Production down, blocking customers, security issue, explicit "urgent/ASAP" |
-| **High** | 2 | Affects multiple users, significant impact, needs attention soon |
+| **Urgent** | 1 | Production down, blocking, security, overdue payment, "urgent/ASAP" |
+| **High** | 2 | Affects customers, important request, quote/sales opportunity |
 | **Normal** | 3 | Standard work, default for most tickets |
-| **Low** | 4 | Nice to have, no immediate impact, can wait |
-
-### Priority Keywords Detection
-- **Urgent (1):** "urgent", "ASAP", "critical", "production down", "blocking", "security"
-- **High (2):** "important", "affecting customers", "please fix", "broken"
-- **Low (4):** "when you have time", "nice to have", "low priority"
+| **Low** | 4 | Nice to have, no immediate impact |
 
 ---
 
-## Phase 2: Enhanced Refinement Rules
+## Example Refinements
 
-### 2.1 Email Source Categorization
-Detect sender patterns to route appropriately:
-
-```typescript
-const SENDER_RULES = {
-  // Support team emails -> likely Bug or Task
-  'support@': { defaultType: 'Bug', priority: 2 },
-  'ops@': { defaultType: 'Bug', priority: 1 },
-  
-  // Customer emails -> likely Feature or Improvement
-  'customer': { defaultType: 'Feature', priority: 3 },
-  
-  // Internal team -> Task
-  '@weapply.se': { defaultType: 'Task', priority: 3 },
-};
+### Sales Lead (Quote Request)
+```
+Input:  "Fwd: Quote request for new mobile app"
+Output: "Quote Request for New Mobile App Development"
+Labels: Development, Prospect, Email
+Priority: High (2)
 ```
 
-### 2.2 Subject Line Patterns
-```typescript
-const SUBJECT_PATTERNS = [
-  { pattern: /error|bug|broken|not working/i, type: 'Bug', priority: 2 },
-  { pattern: /feature request|can we add|would be nice/i, type: 'Feature', priority: 3 },
-  { pattern: /urgent|asap|critical/i, priority: 1 },
-  { pattern: /question|how do|help/i, type: 'Task', priority: 3 },
-];
+### Finance (Overdue Payment)
+```
+Input:  "Re: Invoice #2024-0892 payment overdue"  
+Output: "Process Payment for Overdue Invoice #2024-0892"
+Labels: Accounting, Active Client, Overdue, Email
+Priority: Urgent (1)
 ```
 
-### 2.3 Team Routing Rules
-Route to correct team based on content:
+### Bug Report
+```
+Input:  "Fwd: API returning 500 errors"
+Output: "Fix 500 Errors on /users Endpoint"
+Labels: Bug, Development, Active Client, Backend, Email
+Priority: Urgent (1)
+```
 
-```typescript
-const TEAM_ROUTING = {
-  'Enspecta': ['enspecta', 'inspector', 'certification'],
-  'ASPACE': ['aspace', 'parking', 'space'],
-  'Client': ['client', 'customer portal'],
-  'Infra / DevOps': ['server', 'deployment', 'AWS', 'kubernetes'],
-};
+### Feature Request
+```
+Input:  "Re: Feature request - dark mode"
+Output: "Implement Dark Mode Support in Admin Panel"
+Labels: Feature, Development, Frontend, Email
+Priority: High (2)
 ```
 
 ---
 
-## Phase 3: Advanced Features (Future)
-
-### 3.1 Duplicate Detection
-- Check for similar titles in recent tickets
-- Link as duplicate if confidence > 80%
-- Add comment with reference
-
-### 3.2 Auto-Assignment
-Based on area labels:
-- Frontend → Frontend developers
-- Backend → Backend developers
-- Database → DBA team
-- Devops → DevOps team
-
-### 3.3 SLA Tracking
-Add due dates based on priority:
-- Urgent: 4 hours
-- High: 1 day
-- Normal: 1 week
-- Low: No due date
-
-### 3.4 Response Templates
-Auto-generate acknowledgment comments:
-- "Thank you for reporting this issue. We're looking into it."
-- "Your feature request has been logged. We'll review it in our next planning session."
-
----
-
-## Configuration File Structure (Proposed)
-
-```typescript
-// src/refinementConfig.ts
-export const refinementConfig = {
-  // Label mappings
-  labels: {
-    type: ['Bug', 'Feature', 'Improvement', 'Task', 'Research', 'Epic', 'Change request'],
-    area: ['Frontend', 'Backend', 'Database', 'Admin', 'API', 'Devops', 'UX/UI'],
-    owner: ['Software', 'Production', 'Hardware', 'Embedded', 'Rollout'],
-  },
-  
-  // Priority rules
-  priority: {
-    keywords: {
-      urgent: ['urgent', 'asap', 'critical', 'production down'],
-      high: ['important', 'broken', 'blocking'],
-      low: ['when possible', 'nice to have'],
-    },
-    defaults: {
-      Bug: 2,
-      Feature: 3,
-      Task: 3,
-    },
-  },
-  
-  // Routing rules
-  routing: {
-    byDomain: {
-      'support@': { type: 'Bug', priority: 2 },
-    },
-    bySubject: [
-      { pattern: /error|bug/i, type: 'Bug' },
-    ],
-  },
-};
-```
-
----
-
-## Implementation Roadmap
-
-### ✅ Phase 1 (Complete)
-- [x] Webhook endpoint working
-- [x] AI refinement with GPT-4o-mini
-- [x] Label application (Type, Area, Owner)
-- [x] Priority assignment
-- [x] Structured description format
-
-### 🔄 Phase 2 (Next)
-- [ ] Extract refinement config to separate file
-- [ ] Add sender-based routing rules
-- [ ] Improve subject line pattern matching
-- [ ] Add status helpers labels (Ready for QA, Needs review)
-
-### 📋 Phase 3 (Future)
-- [ ] Duplicate detection
-- [ ] Auto-assignment based on area
-- [ ] SLA/due date assignment
-- [ ] Response templates
-- [ ] Multi-team routing
-
----
-
-## Testing Checklist
-
-When making changes to refinement rules:
-
-1. **Create test ticket** with email-like content
-2. **Verify webhook** receives it (check logs)
-3. **Check labels** are correctly assigned
-4. **Check priority** matches content urgency
-5. **Verify description** is well-structured
-6. **Confirm no duplicates** are processed
+## Testing
 
 ```bash
 # View live logs
@@ -240,4 +170,21 @@ sudo journalctl -u weapply-pm -f
 
 # Restart after changes
 npm run build && sudo systemctl restart weapply-pm
+
+# Service status
+sudo systemctl status weapply-pm
 ```
+
+---
+
+## Future Enhancements
+
+### Phase 2
+- [ ] Auto-assignment based on department label
+- [ ] Duplicate detection for similar titles
+- [ ] SLA tracking with due dates
+
+### Phase 3
+- [ ] Multi-team routing
+- [ ] Response templates
+- [ ] Client portal integration
