@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { config } from './config.js';
 import { EmailData, RefinedContent } from './types.js';
 import { extractTextContent } from './emailParser.js';
+import { analyzeUrgency, combinePriority, getPriorityName, UrgencyAnalysis } from './urgencyDetector.js';
 
 const openai = new OpenAI({
   apiKey: config.openaiApiKey,
@@ -86,54 +87,108 @@ export async function refineEmailContent(email: EmailData): Promise<RefinedConte
   const emailText = extractTextContent(email);
   const truncatedText = emailText.substring(0, config.maxEmailLength);
   
-  const prompt = `You are helping to convert an email into a well-structured Linear ticket for the WeTest team.
+  // 🔥 Analyze urgency from content BEFORE AI refinement
+  const urgencyAnalysis = analyzeUrgency(emailText, email.subject);
+  console.log('🚨 Urgency Analysis:', {
+    score: urgencyAnalysis.score,
+    suggestedPriority: getPriorityName(urgencyAnalysis.suggestedPriority),
+    keywords: urgencyAnalysis.keywords.slice(0, 5),
+    reasons: urgencyAnalysis.reasons.slice(0, 3),
+  });
+  
+  // Add urgency context to prompt if detected
+  const urgencyContext = urgencyAnalysis.score >= 35 
+    ? `\n\n⚠️ URGENCY DETECTED (score: ${urgencyAnalysis.score}/100):
+- Detected keywords: ${urgencyAnalysis.keywords.slice(0, 5).join(', ') || 'none'}
+- Reasons: ${urgencyAnalysis.reasons.slice(0, 3).join(', ') || 'none'}
+- Suggested minimum priority: ${getPriorityName(urgencyAnalysis.suggestedPriority)} (${urgencyAnalysis.suggestedPriority})
+Consider this when assigning priority. Do NOT lower priority below the detected level.`
+    : '';
+  
+  // Detect email context for better prompting
+  const isForwarded = /^(Fwd?|FW):/i.test(email.subject);
+  const isReply = /^Re:/i.test(email.subject);
+  const hasAttachments = email.attachments && email.attachments.length > 0;
+  const senderDomain = email.from.email.split('@')[1]?.toLowerCase();
+  const isInternal = senderDomain === 'weapply.se';
+  
+  const contextHints = [];
+  if (isForwarded) contextHints.push('This is a FORWARDED email - extract the original request');
+  if (isReply) contextHints.push('This is a REPLY in a thread - focus on the latest message');
+  if (hasAttachments) contextHints.push(`Has ${email.attachments!.length} attachment(s) - mention them in the description`);
+  if (isInternal) contextHints.push('Internal sender from @weapply.se');
+  
+  const prompt = `You are a senior project manager at WeApply, a development agency. Convert this email into a clear, actionable Linear ticket.
 
-Email Details:
-- From: ${email.from.name || email.from.email} <${email.from.email}>
-- Subject: ${email.subject}
-- Date: ${email.date?.toISOString() || 'Unknown'}
+## EMAIL METADATA
+- **From**: ${email.from.name || email.from.email} <${email.from.email}>
+- **Subject**: ${email.subject}
+- **Date**: ${email.date?.toISOString() || 'Unknown'}
+${contextHints.length > 0 ? `- **Context**: ${contextHints.join('; ')}` : ''}
 
-Email Content:
+## EMAIL CONTENT
 ${truncatedText}
 
-AVAILABLE LABELS (use EXACT names, pick at most ONE from each category):
+---
 
-TYPE (required - pick ONE):
-${AVAILABLE_LABELS.type.join(', ')}
+## LABELING RULES
+Select labels using EXACT names. Pick ONE from each relevant category:
 
-DEPARTMENT (pick ONE if clear):
-${AVAILABLE_LABELS.dept.join(', ')}
+**TYPE** (required):
+${AVAILABLE_LABELS.type.map(l => `• ${l}`).join('\n')}
 
-CLIENT STATUS (pick ONE if applicable):
-${AVAILABLE_LABELS.client.join(', ')}
+**DEPARTMENT** (if clear who should handle):
+${AVAILABLE_LABELS.dept.map(l => `• ${l}`).join('\n')}
 
-TECH STACK (pick ONE if technical):
-${AVAILABLE_LABELS.tech.join(', ')}
+**CLIENT STATUS** (if client-related):
+${AVAILABLE_LABELS.client.map(l => `• ${l}`).join('\n')}
 
-PROJECT PHASE (pick ONE if applicable):
-${AVAILABLE_LABELS.phase.join(', ')}
+**TECH STACK** (if technical work):
+${AVAILABLE_LABELS.tech.map(l => `• ${l}`).join('\n')}
 
-BILLING (pick if finance-related):
-${AVAILABLE_LABELS.billing.join(', ')}
+**PHASE** (if project context is clear):
+${AVAILABLE_LABELS.phase.map(l => `• ${l}`).join('\n')}
 
-NOTE: Do NOT include source labels (Email, Meeting Notes, etc.) - those are added automatically.
+**BILLING** (if finance-related):
+${AVAILABLE_LABELS.billing.map(l => `• ${l}`).join('\n')}
 
-INSTRUCTIONS:
-1. Create a clear, actionable title (max 80 characters, no email prefixes like "Re:" or "Fwd:")
-2. Write a concise summary (2-3 sentences)
-3. Extract concrete action items as tasks
-4. Select 2-4 labels: MUST include TYPE, then add relevant DEPARTMENT/CLIENT/TECH/PHASE/BILLING
-5. Suggest priority: 1=Urgent, 2=High, 3=Normal (default), 4=Low
-6. Format the description cleanly - focus on what needs to be done
+⚠️ Do NOT include source labels - those are added automatically.
 
-Format your response as JSON:
+## TITLE GUIDELINES
+- Max 80 characters, action-oriented
+- Remove "Re:", "Fwd:", "FW:" prefixes
+- Good: "Fix login button not responding on mobile Safari"
+- Good: "Design new onboarding flow for mobile app"
+- Good: "Quote request for e-commerce platform development"
+- Bad: "Bug" (too vague)
+- Bad: "FW: RE: RE: Quick question about the thing" (cleanup needed)
+- Bad: "Need help!!!!" (unclear what's needed)
+
+## DESCRIPTION FORMAT
+Structure the description as:
+1. **Context**: Brief background (1-2 sentences)
+2. **Request/Issue**: What needs to be done or what's wrong
+3. **Details**: Relevant specifics (steps to reproduce, requirements, etc.)
+4. **Attachments**: If any, briefly note what's attached
+5. **Original Sender**: If forwarded, who originally sent it
+${urgencyContext}
+
+## PRIORITY SCALE
+- **1 (Urgent)**: Production down, security issue, blocked customer, explicit "urgent"
+- **2 (High)**: Customer impact, deadline this week, important client
+- **3 (Normal)**: Standard requests, general work (default)
+- **4 (Low)**: Nice to have, future consideration, internal housekeeping
+
+---
+
+Respond with valid JSON:
 {
-  "title": "actionable title",
-  "description": "clean, well-formatted description focusing on the actual request/issue",
-  "summary": "brief summary of what this ticket is about",
-  "suggestedLabels": ["Task", "Development", "Active Client", "Backend"],
+  "title": "Clear, actionable title describing the work",
+  "description": "Well-formatted description with context and details",
+  "summary": "1-2 sentence summary for quick scanning",
+  "suggestedLabels": ["Support", "Development", "Active Client", "Backend"],
   "suggestedPriority": 3,
-  "actionItems": ["specific action 1", "specific action 2"],
+  "actionItems": ["First concrete action", "Second concrete action"],
   "suggestedAssignee": ""
 }`;
 
@@ -143,7 +198,14 @@ Format your response as JSON:
       messages: [
         {
           role: 'system',
-          content: 'You are an expert at converting emails and documents into well-structured project management tickets. Always respond with valid JSON.',
+          content: `You are an expert project manager at a software development agency. Your role is to:
+1. Convert incoming emails into clear, actionable Linear tickets
+2. Extract the core request or issue from often messy email threads
+3. Identify the type of work, relevant technology, and urgency level
+4. Write professional descriptions that developers can act on immediately
+5. Always respond with valid JSON in the exact format requested
+
+Focus on clarity and actionability. A good ticket should tell someone exactly what to do without reading the original email.`,
         },
         {
           role: 'user',
@@ -161,32 +223,43 @@ Format your response as JSON:
 
     const refined = JSON.parse(response) as RefinedContent;
     
+    // Combine AI priority with detected urgency (use more urgent)
+    const aiPriority = refined.suggestedPriority ?? 3;
+    const finalPriority = combinePriority(aiPriority, urgencyAnalysis.suggestedPriority);
+    
+    if (finalPriority !== aiPriority) {
+      console.log(`🔺 Priority elevated from ${getPriorityName(aiPriority)} to ${getPriorityName(finalPriority)} due to urgency detection`);
+    }
+    
     // Ensure all fields are present
     return {
       title: refined.title || email.subject,
       description: refined.description || emailText,
       summary: refined.summary,
       suggestedLabels: refined.suggestedLabels || [],
-      suggestedPriority: refined.suggestedPriority ?? 3,
+      suggestedPriority: finalPriority,
       actionItems: refined.actionItems || [],
       suggestedAssignee: refined.suggestedAssignee || undefined,
+      urgencyAnalysis, // Include for reference
     };
   } catch (error) {
     console.error('Error refining content with AI:', error);
-    // Fallback to basic refinement
-    return basicRefinement(email);
+    // Fallback to basic refinement with urgency
+    return basicRefinement(email, analyzeUrgency(extractTextContent(email), email.subject));
   }
 }
 
-function basicRefinement(email: EmailData): RefinedContent {
+function basicRefinement(email: EmailData, urgency?: UrgencyAnalysis): RefinedContent {
   const emailText = extractTextContent(email);
+  const urgencyAnalysis = urgency || analyzeUrgency(emailText, email.subject);
   
   return {
     title: email.subject || '(No Subject)',
     description: emailText || 'No content available',
     summary: emailText.substring(0, 200) + (emailText.length > 200 ? '...' : ''),
     suggestedLabels: [],
-    suggestedPriority: 3,
+    suggestedPriority: urgencyAnalysis.suggestedPriority,
     actionItems: [],
+    urgencyAnalysis,
   };
 }

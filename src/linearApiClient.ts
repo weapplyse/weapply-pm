@@ -589,6 +589,122 @@ export async function addIssueToProject(
   }
 }
 
+/**
+ * Remove issue from its current project
+ */
+export async function removeFromProject(issueId: string): Promise<boolean> {
+  const mutation = `
+    mutation UpdateIssue($id: String!, $input: IssueUpdateInput!) {
+      issueUpdate(id: $id, input: $input) {
+        success
+      }
+    }
+  `;
+
+  try {
+    const response = await fetch(LINEAR_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: LINEAR_API_KEY,
+      },
+      body: JSON.stringify({
+        query: mutation,
+        variables: {
+          id: issueId,
+          input: { projectId: null },
+        },
+      }),
+    });
+
+    const result = await response.json() as { data?: { issueUpdate?: { success: boolean } } };
+    return result.data?.issueUpdate?.success || false;
+  } catch (error) {
+    console.error('Error removing issue from project:', error);
+    return false;
+  }
+}
+
+/**
+ * Create a sub-issue under a parent issue
+ */
+export async function createSubIssue(
+  teamId: string,
+  parentIssueId: string,
+  title: string,
+  description: string,
+  labels: string[] = []
+): Promise<{ success: boolean; issueId?: string; error?: string }> {
+  try {
+    const mutation = `
+      mutation CreateIssue($input: IssueCreateInput!) {
+        issueCreate(input: $input) {
+          success
+          issue {
+            id
+            identifier
+            title
+            url
+          }
+        }
+      }
+    `;
+
+    const input: any = {
+      title,
+      description,
+      teamId,
+      parentId: parentIssueId,
+    };
+
+    // Add labels if provided
+    if (labels.length > 0) {
+      const labelIds = await getLabelIds(labels, teamId);
+      if (labelIds.length > 0) {
+        input.labelIds = labelIds;
+      }
+    }
+
+    const response = await fetch(LINEAR_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: LINEAR_API_KEY,
+      },
+      body: JSON.stringify({
+        query: mutation,
+        variables: { input },
+      }),
+    });
+
+    const result = await response.json() as CreateIssueResponse;
+
+    if (result.errors && result.errors.length > 0) {
+      return {
+        success: false,
+        error: result.errors.map((e) => e.message).join(', '),
+      };
+    }
+
+    if (result.data?.issueCreate?.success) {
+      return {
+        success: true,
+        issueId: result.data.issueCreate.issue.id,
+      };
+    }
+
+    return {
+      success: false,
+      error: 'Unknown error creating sub-issue',
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
 async function getLabelIds(labelNames: string[], teamId: string): Promise<string[]> {
   const query = `
     query($teamId: String!) {

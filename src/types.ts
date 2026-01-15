@@ -21,6 +21,13 @@ export interface EmailAttachment {
   size: number;
 }
 
+export interface UrgencyAnalysis {
+  score: number;           // 0-100, higher = more urgent
+  suggestedPriority: number; // 1=Urgent, 2=High, 3=Normal, 4=Low
+  reasons: string[];       // Why this urgency level
+  keywords: string[];      // Detected urgency keywords
+}
+
 export interface RefinedContent {
   title: string;
   description: string;
@@ -29,6 +36,7 @@ export interface RefinedContent {
   suggestedPriority?: number;
   suggestedAssignee?: string;
   actionItems?: string[];
+  urgencyAnalysis?: UrgencyAnalysis;
 }
 
 export interface LinearTicketData {

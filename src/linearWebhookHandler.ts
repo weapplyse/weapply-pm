@@ -1,11 +1,108 @@
 import express, { Request, Response } from 'express';
 import crypto from 'crypto';
 import { processEmail } from './emailHandler.js';
-import { updateLinearIssue, getIssue, getUserIdByEmail, getOrCreateProject, addIssueToProject, getTeamId } from './linearApiClient.js';
+import { updateLinearIssue, getIssue, getUserIdByEmail, getOrCreateProject, addIssueToProject, getTeamId, createSubIssue, removeFromProject } from './linearApiClient.js';
 import { config } from './config.js';
 import { extractEmailMetadata, getSourceLabels, getClientProjectName, shouldCreateClientProject, EmailMetadata } from './emailRouting.js';
+import { analyzeAttachments, formatAttachmentsMarkdown, generateAttachmentSubIssues, AttachmentAnalysis } from './attachmentHandler.js';
+import { EmailAttachment } from './types.js';
 
 const router = express.Router();
+
+/**
+ * Extract attachment information from Linear email description
+ * Linear includes attachments as links like: [filename.pdf](url) or mentions them in text
+ */
+function extractAttachmentInfo(content: string): EmailAttachment[] {
+  const attachments: EmailAttachment[] = [];
+  
+  // Pattern 1: Markdown links that look like attachments
+  // [filename.ext](url) or [📎 filename.ext](url)
+  const linkPattern = /\[(?:📎\s*)?([^\]]+\.[a-zA-Z0-9]+)\]\([^)]+\)/g;
+  let match;
+  
+  while ((match = linkPattern.exec(content)) !== null) {
+    const filename = match[1].trim();
+    // Skip common non-attachment links
+    if (!filename.match(/\.(html|htm|com|org|net|io)$/i)) {
+      attachments.push({
+        filename,
+        contentType: guessContentType(filename),
+        content: Buffer.from(''), // Placeholder - we don't have actual content
+        size: 0, // Unknown size from Linear
+      });
+    }
+  }
+  
+  // Pattern 2: Plain text mentions of attachments
+  // "Attached: filename.ext" or "Attachment: filename.ext"
+  const attachedPattern = /(?:attached?|attachment):\s*([^\s]+\.[a-zA-Z0-9]+)/gi;
+  while ((match = attachedPattern.exec(content)) !== null) {
+    const filename = match[1].trim();
+    if (!attachments.some(a => a.filename === filename)) {
+      attachments.push({
+        filename,
+        contentType: guessContentType(filename),
+        content: Buffer.from(''),
+        size: 0,
+      });
+    }
+  }
+  
+  // Pattern 3: Detect filenames in brackets or after common phrases
+  // "see [filename.pdf]" or "please review filename.xlsx"
+  const filePattern = /(?:see|review|check|attached|find)\s+(?:\[)?([a-zA-Z0-9_-]+\.[a-zA-Z0-9]+)(?:\])?/gi;
+  while ((match = filePattern.exec(content)) !== null) {
+    const filename = match[1].trim();
+    const validExtensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'zip', 'png', 'jpg', 'jpeg', 'gif', 'sketch', 'fig', 'psd', 'ai'];
+    const ext = filename.split('.').pop()?.toLowerCase();
+    if (ext && validExtensions.includes(ext) && !attachments.some(a => a.filename === filename)) {
+      attachments.push({
+        filename,
+        contentType: guessContentType(filename),
+        content: Buffer.from(''),
+        size: 0,
+      });
+    }
+  }
+  
+  return attachments;
+}
+
+/**
+ * Guess content type from filename extension
+ */
+function guessContentType(filename: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  const types: Record<string, string> = {
+    'pdf': 'application/pdf',
+    'doc': 'application/msword',
+    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'xls': 'application/vnd.ms-excel',
+    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'ppt': 'application/vnd.ms-powerpoint',
+    'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'zip': 'application/zip',
+    'png': 'image/png',
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'gif': 'image/gif',
+    'svg': 'image/svg+xml',
+    'sketch': 'application/x-sketch',
+    'fig': 'application/x-figma',
+    'psd': 'image/vnd.adobe.photoshop',
+    'ai': 'application/postscript',
+    'txt': 'text/plain',
+    'md': 'text/markdown',
+    'csv': 'text/csv',
+    'json': 'application/json',
+    'html': 'text/html',
+    'css': 'text/css',
+    'js': 'text/javascript',
+    'ts': 'text/typescript',
+  };
+  return types[ext || ''] || 'application/octet-stream';
+}
 
 /**
  * Verify Linear webhook signature
@@ -66,13 +163,32 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
 
     const webhookData = req.body;
     
-    // Only process issue creation events
-    if (webhookData.type !== 'Issue' || webhookData.action !== 'create') {
+    // Handle different event types
+    if (webhookData.type !== 'Issue') {
       return res.status(200).json({ 
-        message: 'Ignored - not an issue creation event',
+        message: 'Ignored - not an issue event',
         type: webhookData.type,
         action: webhookData.action
       });
+    }
+
+    // Check for manual refinement trigger (issue added to Refine Queue project)
+    const REFINE_QUEUE_PROJECT_ID = '5ddfdf70-180b-472b-83a5-5a3ecbe70384';
+    const isManualRefinement = 
+      webhookData.action === 'update' && 
+      webhookData.data?.projectId === REFINE_QUEUE_PROJECT_ID;
+
+    // Only process issue creation events OR manual refinement
+    if (webhookData.action !== 'create' && !isManualRefinement) {
+      return res.status(200).json({ 
+        message: 'Ignored - not an issue creation or refinement event',
+        type: webhookData.type,
+        action: webhookData.action
+      });
+    }
+
+    if (isManualRefinement) {
+      console.log('🪄 Manual refinement triggered via Refine Queue project');
     }
 
     const issueId = webhookData.data?.id;
@@ -96,8 +212,8 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
     const issue = issueResult.issue;
     const emailContent = issue.description || issue.title;
 
-    // Skip if already refined (check for our marker in description)
-    if (issue.description?.includes('## Summary') && issue.description?.includes('**Original Email**')) {
+    // Skip if already refined (check for our marker in description) - unless manual refinement
+    if (!isManualRefinement && issue.description?.includes('## Summary') && issue.description?.includes('**Original Email**')) {
       console.log('ℹ️  Issue already refined, skipping');
       return res.status(200).json({ 
         message: 'Skipped - issue already refined',
@@ -115,13 +231,18 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
       issue.title.includes('FW:') ||
       issue.title.includes('Fw:');
 
-    if (!isFromEmail) {
+    // For manual refinement, always proceed regardless of source
+    if (!isManualRefinement && !isFromEmail) {
       console.log('ℹ️  Issue not from email, skipping refinement');
       return res.status(200).json({ 
         message: 'Skipped - issue not created from email',
         issueIdentifier 
       });
     }
+    
+    // Store original content for manual refinement (to create sub-issue later)
+    const originalTitle = issue.title;
+    const originalDescription = issue.description || '';
 
     // Extract email metadata for routing
     const emailMetadata = extractEmailMetadata(emailContent, issue.title);
@@ -134,6 +255,19 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
       console.log(`  Original sender: ${emailMetadata.originalSenderEmail || 'unknown'}`);
     }
     console.log(`  Route: ${emailMetadata.isInternalForward ? 'Internal Forward' : emailMetadata.isExternalDirect ? 'External Direct' : emailMetadata.isInternal ? 'Internal' : 'External'}`);
+
+    // Extract attachment info from email content
+    // Linear email intake includes attachments as links in the description
+    const attachmentInfo = extractAttachmentInfo(emailContent);
+    let attachmentAnalyses: AttachmentAnalysis[] = [];
+    
+    if (attachmentInfo.length > 0) {
+      attachmentAnalyses = analyzeAttachments(attachmentInfo);
+      console.log(`📎 Attachments detected: ${attachmentAnalyses.length}`);
+      for (const att of attachmentAnalyses) {
+        console.log(`  - ${att.icon} ${att.filename} (${att.size}) ${att.isActionable ? '⚡' : ''}`);
+      }
+    }
 
     console.log('🤖 Refining content with AI...');
 
@@ -157,11 +291,20 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
     // Remove duplicates
     const uniqueLabels = [...new Set(allLabels)];
 
+    // Add attachment section to description if attachments exist
+    let finalDescription = result.ticketData.description;
+    if (attachmentAnalyses.length > 0) {
+      finalDescription += formatAttachmentsMarkdown(attachmentAnalyses);
+    }
+
     console.log(`✓ Refined: "${result.ticketData.title}"`);
     console.log(`  Summary: ${(result.refinedContent.summary || '').substring(0, 100)}...`);
     console.log(`  Action items: ${(result.refinedContent.actionItems || []).length}`);
     console.log(`  Labels: ${JSON.stringify(uniqueLabels)}`);
     console.log(`  Priority: ${result.ticketData.priority}`);
+    if (attachmentAnalyses.length > 0) {
+      console.log(`  Attachments: ${attachmentAnalyses.length}`);
+    }
 
     // Determine assignee based on email routing
     let assigneeEmail: string | undefined;
@@ -192,7 +335,7 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
     // Update the Linear issue
     const updateResult = await updateLinearIssue(issueId, {
       title: result.ticketData.title,
-      description: result.ticketData.description,
+      description: finalDescription,
       labels: uniqueLabels,
       priority: result.ticketData.priority,
       assignee: assigneeEmail,
@@ -201,6 +344,61 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
     // Add to client project if created
     if (clientProjectId && updateResult.success) {
       await addIssueToProject(issueId, clientProjectId);
+    }
+
+    // Create sub-issues for actionable attachments
+    if (updateResult.success && attachmentAnalyses.length > 0) {
+      const subIssues = generateAttachmentSubIssues(attachmentAnalyses);
+      const actionableCount = subIssues.length;
+      
+      if (actionableCount > 0) {
+        console.log(`📋 Creating ${actionableCount} attachment sub-issue(s)...`);
+        
+        const teamId = await getTeamId(config.defaultLinearTeam);
+        if (teamId) {
+          for (const subIssue of subIssues) {
+            try {
+              const subResult = await createSubIssue(
+                teamId,
+                issueId,
+                subIssue.title,
+                subIssue.description,
+                subIssue.labels
+              );
+              if (subResult.success) {
+                console.log(`  ✓ Created: ${subIssue.title.substring(0, 50)}...`);
+              }
+            } catch (err) {
+              console.error(`  ✗ Failed to create sub-issue: ${err}`);
+            }
+          }
+        }
+      }
+    }
+
+    // For manual refinement: create sub-issue with original content and remove from Refine Queue
+    if (isManualRefinement && updateResult.success) {
+      console.log('📝 Creating sub-issue with original content...');
+      
+      const teamId = await getTeamId(config.defaultLinearTeam);
+      if (teamId) {
+        // Create sub-issue with original content
+        const originalSubIssue = await createSubIssue(
+          teamId,
+          issueId,
+          `Original: ${originalTitle.substring(0, 60)}`,
+          `## Original Content (Pre-Refinement)\n\n**Original Title:** ${originalTitle}\n\n**Original Description:**\n\n${originalDescription || '(No description)'}`,
+          ['Documentation']
+        );
+        
+        if (originalSubIssue.success) {
+          console.log('  ✓ Created original content sub-issue');
+        }
+        
+        // Remove from Refine Queue by clearing the project
+        await removeFromProject(issueId);
+        console.log('  ✓ Removed from Refine Queue');
+      }
     }
 
     const duration = Date.now() - startTime;
