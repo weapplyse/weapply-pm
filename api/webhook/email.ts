@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { processEmail } from '../src/emailHandler.js';
-import { createLinearTicketViaAPI } from '../src/linearApiClient.js';
-import { config } from '../src/config.js';
+import { processEmail } from '../../src/emailHandler.js';
+import { createLinearTicketViaAPI } from '../../src/linearApiClient.js';
+import { config } from '../../src/config.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Only allow POST requests
