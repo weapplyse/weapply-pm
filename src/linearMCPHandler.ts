@@ -8,6 +8,7 @@ export async function createLinearTicket(ticketData: LinearTicketData): Promise<
   success: boolean;
   issueId?: string;
   error?: string;
+  mcpParams?: any;
 }> {
   // This function prepares the data for MCP call
   // The actual MCP call will be made by the caller using mcp_linear_create_issue

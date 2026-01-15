@@ -98,7 +98,7 @@ export async function createLinearTicketViaAPI(
       }),
     });
 
-    const result: CreateIssueResponse = await response.json();
+    const result = await response.json() as CreateIssueResponse;
 
     if (result.errors && result.errors.length > 0) {
       return {
@@ -150,7 +150,7 @@ async function getTeamId(teamNameOrId: string): Promise<string | null> {
       body: JSON.stringify({ query }),
     });
 
-    const result = await response.json();
+    const result = await response.json() as { data?: { teams?: { nodes?: Array<{ id: string; name: string; key: string }> } } };
     const teams = result.data?.teams?.nodes || [];
 
     // Try to find by name or key (case-insensitive)
@@ -195,7 +195,7 @@ async function getProjectId(projectNameOrId: string, teamId: string): Promise<st
       }),
     });
 
-    const result = await response.json();
+    const result = await response.json() as { data?: { team?: { projects?: { nodes?: Array<{ id: string; name: string }> } } } };
     const projects = result.data?.team?.projects?.nodes || [];
 
     const project = projects.find(
@@ -235,7 +235,7 @@ async function getUserId(emailOrName: string): Promise<string | null> {
       body: JSON.stringify({ query }),
     });
 
-    const result = await response.json();
+    const result = await response.json() as { data?: { users?: { nodes?: Array<{ id: string; email?: string; name?: string; displayName?: string }> } } };
     const users = result.data?.users?.nodes || [];
 
     const user = users.find(
@@ -280,7 +280,7 @@ async function getLabelIds(labelNames: string[], teamId: string): Promise<string
       }),
     });
 
-    const result = await response.json();
+    const result = await response.json() as { data?: { team?: { issueLabels?: { nodes?: Array<{ id: string; name: string }> } } } };
     const labels = result.data?.team?.issueLabels?.nodes || [];
 
     const labelIds = labelNames
