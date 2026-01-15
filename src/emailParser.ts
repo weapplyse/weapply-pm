@@ -11,19 +11,23 @@ export async function parseEmail(rawEmail: string | Buffer): Promise<EmailData> 
     size: att.size || 0,
   })) || [];
 
+  const fromAddress = Array.isArray(parsed.from) ? parsed.from[0] : parsed.from;
+  const toAddresses = Array.isArray(parsed.to) ? parsed.to : (parsed.to ? [parsed.to] : []);
+  const ccAddresses = parsed.cc ? (Array.isArray(parsed.cc) ? parsed.cc : [parsed.cc]) : undefined;
+
   return {
     from: {
-      name: parsed.from?.name || undefined,
-      email: parsed.from?.text || parsed.from?.value?.[0]?.address || '',
+      name: (fromAddress as any)?.name || undefined,
+      email: (fromAddress as any)?.address || (fromAddress as any)?.text || '',
     },
-    to: parsed.to?.value?.map((addr: any) => addr.address) || [],
-    cc: parsed.cc?.value?.map((addr: any) => addr.address),
+    to: toAddresses.map((addr: any) => addr.address || addr.text || '') || [],
+    cc: ccAddresses?.map((addr: any) => addr.address || addr.text),
     subject: parsed.subject || '(No Subject)',
     text: parsed.text || undefined,
     html: parsed.html || undefined,
     attachments: attachments.length > 0 ? attachments : undefined,
     date: parsed.date,
-    threadId: parsed.inReplyTo || parsed.references?.[0] || undefined,
+    threadId: parsed.inReplyTo || (parsed.references && Array.isArray(parsed.references) ? parsed.references[0] : parsed.references) || undefined,
     messageId: parsed.messageId,
   };
 }
