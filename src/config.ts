@@ -8,7 +8,7 @@ export const config = {
   openaiApiKey: process.env.OPENAI_API_KEY || '',
   linearApiKey: process.env.LINEAR_API_KEY || '',
   webhookSecret: process.env.WEBHOOK_SECRET || '',
-  defaultLinearTeam: process.env.DEFAULT_LINEAR_TEAM || 'Weapply',
+  defaultLinearTeam: process.env.DEFAULT_LINEAR_TEAM || 'WeTest',
   defaultLinearProject: process.env.DEFAULT_LINEAR_PROJECT || '',
   enableAIRefinement: process.env.ENABLE_AI_REFINEMENT !== 'false',
   autoCreateTickets: process.env.AUTO_CREATE_TICKETS !== 'false',
