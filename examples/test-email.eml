@@ -1,0 +1,22 @@
+From: john.doe@example.com
+To: support@weapply.se
+Subject: Bug Report: Login Issue
+Date: Mon, 15 Jan 2024 14:30:00 +0100
+Message-ID: <test123@example.com>
+Content-Type: text/plain; charset=UTF-8
+
+Hi Team,
+
+I'm experiencing an issue with the login functionality. When I try to log in with my credentials, I get an error message saying "Invalid credentials" even though I'm sure my password is correct.
+
+Steps to reproduce:
+1. Go to the login page
+2. Enter email: john.doe@example.com
+3. Enter password: mypassword123
+4. Click "Login"
+5. See error message
+
+This is blocking me from accessing my account. Could you please look into this urgently?
+
+Thanks,
+John Doe
