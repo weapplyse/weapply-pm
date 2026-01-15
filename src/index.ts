@@ -19,6 +19,10 @@ app.get('/health', (req: Request, res: Response) => {
 // Gmail API endpoint
 app.use('/gmail', gmailRouter);
 
+// Linear webhook endpoint
+import linearWebhookRouter from './linearWebhookHandler.js';
+app.use('/webhook', linearWebhookRouter);
+
 // Main webhook endpoint for receiving emails
 app.post('/webhook/email', async (req: Request, res: Response) => {
   try {

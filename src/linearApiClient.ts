@@ -127,6 +127,202 @@ export async function createLinearTicketViaAPI(
   }
 }
 
+/**
+ * Update an existing Linear issue
+ */
+export async function updateLinearIssue(
+  issueId: string,
+  updates: {
+    title?: string;
+    description?: string;
+    labels?: string[];
+    priority?: number;
+    assignee?: string;
+  }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const mutation = `
+      mutation UpdateIssue($id: String!, $input: IssueUpdateInput!) {
+        issueUpdate(id: $id, input: $input) {
+          success
+          issue {
+            id
+            title
+          }
+        }
+      }
+    `;
+
+    const input: any = {};
+
+    if (updates.title) {
+      input.title = updates.title;
+    }
+
+    if (updates.description) {
+      input.description = updates.description;
+    }
+
+    if (updates.priority !== undefined) {
+      input.priority = updates.priority;
+    }
+
+    if (updates.assignee) {
+      const assigneeId = await getUserId(updates.assignee);
+      if (assigneeId) {
+        input.assigneeId = assigneeId;
+      }
+    }
+
+    // Get issue to find team for labels
+    const issueQuery = `
+      query GetIssue($id: String!) {
+        issue(id: $id) {
+          id
+          team {
+            id
+          }
+        }
+      }
+    `;
+
+    const issueResponse = await fetch(LINEAR_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: LINEAR_API_KEY,
+      },
+      body: JSON.stringify({
+        query: issueQuery,
+        variables: { id: issueId },
+      }),
+    });
+
+    const issueResult = await issueResponse.json() as { data?: { issue?: { team?: { id: string } } } };
+    const teamId = issueResult.data?.issue?.team?.id;
+
+    if (updates.labels && updates.labels.length > 0 && teamId) {
+      const labelIds = await getLabelIds(updates.labels, teamId);
+      if (labelIds.length > 0) {
+        input.labelIds = labelIds;
+      }
+    }
+
+    const response = await fetch(LINEAR_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: LINEAR_API_KEY,
+      },
+      body: JSON.stringify({
+        query: mutation,
+        variables: {
+          id: issueId,
+          input,
+        },
+      }),
+    });
+
+    const result = await response.json() as { data?: { issueUpdate?: { success: boolean } }; errors?: Array<{ message: string }> };
+
+    if (result.errors && result.errors.length > 0) {
+      return {
+        success: false,
+        error: result.errors.map((e) => e.message).join(', '),
+      };
+    }
+
+    if (result.data?.issueUpdate?.success) {
+      return { success: true };
+    }
+
+    return {
+      success: false,
+      error: 'Unknown error updating issue',
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * Get issue details including description
+ */
+export async function getIssue(issueId: string): Promise<{
+  success: boolean;
+  issue?: {
+    id: string;
+    title: string;
+    description: string;
+    teamId: string;
+  };
+  error?: string;
+}> {
+  try {
+    const query = `
+      query GetIssue($id: String!) {
+        issue(id: $id) {
+          id
+          title
+          description
+          team {
+            id
+          }
+        }
+      }
+    `;
+
+    const response = await fetch(LINEAR_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: LINEAR_API_KEY,
+      },
+      body: JSON.stringify({
+        query,
+        variables: { id: issueId },
+      }),
+    });
+
+    const result = await response.json() as {
+      data?: { issue?: { id: string; title: string; description: string; team?: { id: string } } };
+      errors?: Array<{ message: string }>;
+    };
+
+    if (result.errors && result.errors.length > 0) {
+      return {
+        success: false,
+        error: result.errors.map((e) => e.message).join(', '),
+      };
+    }
+
+    if (result.data?.issue) {
+      return {
+        success: true,
+        issue: {
+          id: result.data.issue.id,
+          title: result.data.issue.title,
+          description: result.data.issue.description || '',
+          teamId: result.data.issue.team?.id || '',
+        },
+      };
+    }
+
+    return {
+      success: false,
+      error: 'Issue not found',
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
 async function getTeamId(teamNameOrId: string): Promise<string | null> {
   const query = `
     query {
@@ -167,6 +363,8 @@ async function getTeamId(teamNameOrId: string): Promise<string | null> {
     return null;
   }
 }
+
+export { getTeamId };
 
 async function getProjectId(projectNameOrId: string, teamId: string): Promise<string | null> {
   const query = `
