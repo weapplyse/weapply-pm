@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "api/webhook/email.ts": {
+      "maxDuration": 60
+    }
+  },
+  "env": {
+    "NODE_ENV": "production"
+  }
+}
