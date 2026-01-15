@@ -1,174 +1,186 @@
-# Weapply PM - Refinement Rules & Categorization
+# Weapply PM - AI Email Refinement System
 
-## Current Flow (Working ✅)
+## Project Info
+- **Linear Project**: [WeApply - AI Refinement](https://linear.app/weapply/project/weapply-ai-refinement-a98378fa1479)
+- **Team**: WeTest
+- **Owner**: Pelle Nyman (pelle@weapply.se)
+
+---
+
+## System Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  1. Email arrives at pm@weapply.se                              │
+│  Email arrives at pm@weapply.se                                 │
+└─────────────────────────────────┬───────────────────────────────┘
+                                  │
+              ┌───────────────────┴───────────────────┐
+              │                                       │
+              ▼                                       ▼
+┌─────────────────────────┐             ┌─────────────────────────┐
+│  Internal Sender        │             │  External Sender        │
+│  (@weapply.se)          │             │  (client domain)        │
+│                         │             │                         │
+│  → Assign to sender     │             │  → Create/find client   │
+│  → Label: Internal      │             │    project by domain    │
+│                         │             │  → Label: External      │
+└───────────┬─────────────┘             └───────────┬─────────────┘
+            │                                       │
+            │         ┌─────────────────┐           │
+            └────────►│  Is Forwarded?  │◄──────────┘
+                      └────────┬────────┘
+                               │
+              ┌────────────────┴────────────────┐
+              │                                 │
+              ▼                                 ▼
+┌─────────────────────────┐       ┌─────────────────────────┐
+│  Forwarded Email        │       │  Direct Email           │
+│                         │       │                         │
+│  → Extract original     │       │  → Sender is requester  │
+│    sender from body     │       │  → Check for spam/lead  │
+│  → Forwarder = owner    │       │                         │
+│  → Label: Forwarded     │       │  → Label: External      │
+│    or Internal Forward  │       │    Direct               │
+└───────────┬─────────────┘       └───────────┬─────────────┘
+            │                                 │
+            └─────────────┬───────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  AI Refinement (OpenAI GPT-4o-mini)                             │
+│                                                                 │
+│  → Clean title (remove Fwd:/Re:, make actionable)               │
+│  → Analyze urgency (keywords, tone, impact)                     │
+│  → Extract action items                                         │
+│  → Assign labels (Type, Dept, Client, Tech, Phase, Billing)     │
+│  → Set priority (Urgent/High/Normal/Low)                        │
+│  → Analyze attachments (if any)                                 │
 └─────────────────────────────────┬───────────────────────────────┘
                                   │
                                   ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  2. Forwarded to Linear intake email                            │
-│     → Linear creates ticket in WeTest team                      │
-└─────────────────────────────────┬───────────────────────────────┘
-                                  │
-                                  ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  3. Linear webhook triggers                                     │
-│     → POST https://pm.weapply.se/webhook/linear-webhook         │
-└─────────────────────────────────┬───────────────────────────────┘
-                                  │
-                                  ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  4. AI Refinement (OpenAI GPT-4o-mini)                          │
-│     → Clean title (remove Fwd:/Re:, make actionable)            │
-│     → Structured description (Summary, Action Items, Details)   │
-│     → Assign labels (Type, Dept, Client, Tech, Phase, Billing)  │
-│     → Set priority (1-4 based on urgency)                       │
-└─────────────────────────────────┬───────────────────────────────┘
-                                  │
-                                  ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  5. Update Linear ticket via API                                │
-│     → Title, description, labels, priority                      │
+│  Update Linear Ticket                                           │
+│                                                                 │
+│  → Title, description, labels, priority                         │
+│  → Assign to appropriate person                                 │
+│  → Add to client project                                        │
+│  → Create sub-issues for attachments                            │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Label Structure for Development Agency
+## Feature Roadmap
 
-### 🏷️ TYPE (Required - pick ONE)
-| Label | When to use | Color |
-|-------|-------------|-------|
-| **Bug** | Something is broken, errors | 🔴 Red |
-| **Feature** | New functionality request | 🟣 Purple |
-| **Improvement** | Enhancement to existing feature | 🔵 Blue |
-| **Task** | General work item | 🟢 Green |
-| **Support** | Support request or question | 🔵 Cyan |
-| **Meeting** | Meeting notes or follow-up | 🟠 Orange |
-| **Documentation** | Documentation updates | 🟢 Green |
-| **Maintenance** | Regular maintenance work | ⚪ Gray |
-| **Hotfix** | Urgent production fix | 🔴 Red |
-| **Refactor** | Code refactoring | 🔵 Indigo |
+### ✅ Phase 1 - Complete
+- [x] Webhook endpoint at `/webhook/linear-webhook`
+- [x] AI refinement with GPT-4o-mini
+- [x] Label structure for development agency
+- [x] Priority assignment
+- [x] Structured description format
 
-### 🏢 DEPARTMENT (pick ONE if clear)
-| Label | When to use |
-|-------|-------------|
-| **Development** | Dev team work |
-| **Design** | Design/UX team |
-| **Project Mgmt** | PM work |
-| **Accounting** | Finance/accounting |
-| **Sales** | Sales/business development |
-| **Operations** | DevOps/infrastructure |
+### 🔄 Phase 2 - In Progress
 
-### 👤 CLIENT STATUS (pick ONE if applicable)
-| Label | Description |
-|-------|-------------|
-| **New Lead** | Potential new client |
-| **Active Client** | Current paying client |
-| **Prospect** | In sales pipeline |
-| **Former Client** | Past client relationship |
-| **Internal** | Internal company work |
+| Issue | Feature | Status |
+|-------|---------|--------|
+| [WET-17](https://linear.app/weapply/issue/WET-17) | Auto-assign tickets from internal senders | Backlog |
+| [WET-18](https://linear.app/weapply/issue/WET-18) | Client project auto-creation by domain | Backlog |
+| [WET-21](https://linear.app/weapply/issue/WET-21) | Internal forward detection and labeling | Backlog |
+| [WET-22](https://linear.app/weapply/issue/WET-22) | External direct email routing | Backlog |
 
-### 💻 TECH STACK (pick ONE if technical)
-| Label | Description |
-|-------|-------------|
-| **Frontend** | UI, React, browser-related |
-| **Backend** | API, server, business logic |
-| **Mobile** | iOS, Android, React Native |
-| **Database** | PostgreSQL, data issues |
-| **Infrastructure** | AWS, servers, deployment |
-| **Integration** | Third-party integrations |
-| **Security** | Security-related |
-| **AI/ML** | AI/ML features |
+### 📋 Phase 3 - Planned
 
-### 📅 PROJECT PHASE (pick ONE if applicable)
-| Label | Description |
-|-------|-------------|
-| **Discovery** | Initial requirements gathering |
-| **Planning** | Project planning and scoping |
-| **In Development** | Active development phase |
-| **Review** | Code review or client review |
-| **Testing** | QA and testing phase |
-| **Deployment** | Deployment and launch |
-| **Post-Launch** | Maintenance and support |
-
-### 💰 BILLING (pick if finance-related)
-| Label | Description |
-|-------|-------------|
-| **Quote** | Quote or estimate needed |
-| **Invoice** | Invoice related |
-| **Payment** | Payment tracking |
-| **Contract** | Contract or agreement |
-| **Overdue** | Overdue payment |
-
-### 📨 REQUEST SOURCE (auto-applied)
-| Label | Description |
-|-------|-------------|
-| **Email** | From email (auto for pm@weapply.se) |
-| **Meeting Notes** | From meeting |
-| **Chat** | From Slack/Teams |
-| **Phone** | From phone call |
-| **Portal** | From client portal |
+| Issue | Feature | Status |
+|-------|---------|--------|
+| [WET-19](https://linear.app/weapply/issue/WET-19) | Enhanced urgency detection | Backlog |
+| [WET-20](https://linear.app/weapply/issue/WET-20) | Attachment capture and analysis | Backlog |
+| [WET-23](https://linear.app/weapply/issue/WET-23) | Manual ticket refinement via project | Backlog |
+| [WET-24](https://linear.app/weapply/issue/WET-24) | Improve AI prompt | Backlog |
 
 ---
 
-## Priority Assignment Rules
+## Label Structure
 
-| Priority | Value | Criteria |
+### 🏷️ TYPE (Required)
+`Bug` | `Feature` | `Improvement` | `Task` | `Support` | `Meeting` | `Documentation` | `Maintenance` | `Hotfix` | `Refactor`
+
+### 🏢 DEPARTMENT
+`Development` | `Design` | `Project Mgmt` | `Accounting` | `Sales` | `Operations`
+
+### 👤 CLIENT STATUS
+`New Lead` | `Active Client` | `Prospect` | `Former Client` | `Internal`
+
+### 💻 TECH STACK
+`Frontend` | `Backend` | `Mobile` | `Database` | `Infrastructure` | `Integration` | `Security` | `AI/ML`
+
+### 📅 PROJECT PHASE
+`Discovery` | `Planning` | `In Development` | `Review` | `Testing` | `Deployment` | `Post-Launch`
+
+### 💰 BILLING
+`Quote` | `Invoice` | `Payment` | `Contract` | `Overdue`
+
+### 📨 REQUEST SOURCE
+`Email` | `Internal Forward` | `External Direct` | `Forwarded` | `Meeting Notes` | `Chat` | `Phone` | `Portal`
+
+---
+
+## Priority Rules
+
+| Priority | Value | Triggers |
 |----------|-------|----------|
-| **Urgent** | 1 | Production down, blocking, security, overdue payment, "urgent/ASAP" |
-| **High** | 2 | Affects customers, important request, quote/sales opportunity |
-| **Normal** | 3 | Standard work, default for most tickets |
-| **Low** | 4 | Nice to have, no immediate impact |
+| **Urgent** | 1 | "urgent", "ASAP", "critical", production down, security, overdue payment, ALL CAPS panic |
+| **High** | 2 | Customer impact, deadline, important client, "please help", sales opportunity |
+| **Normal** | 3 | Standard requests (default) |
+| **Low** | 4 | "when you can", "nice to have", "future consideration" |
 
 ---
 
-## Example Refinements
+## Email Routing Logic
 
-### Sales Lead (Quote Request)
+### Internal Sender (@weapply.se)
 ```
-Input:  "Fwd: Quote request for new mobile app"
-Output: "Quote Request for New Mobile App Development"
-Labels: Development, Prospect, Email
-Priority: High (2)
-```
-
-### Finance (Overdue Payment)
-```
-Input:  "Re: Invoice #2024-0892 payment overdue"  
-Output: "Process Payment for Overdue Invoice #2024-0892"
-Labels: Accounting, Active Client, Overdue, Email
-Priority: Urgent (1)
+IF sender.domain === 'weapply.se':
+  - Assign ticket to sender (match by email)
+  - Add label: "Internal"
+  - IF forwarded:
+    - Add label: "Internal Forward"
+    - Extract original sender from email body
+    - Create/assign client project for original sender domain
 ```
 
-### Bug Report
+### External Sender
 ```
-Input:  "Fwd: API returning 500 errors"
-Output: "Fix 500 Errors on /users Endpoint"
-Labels: Bug, Development, Active Client, Backend, Email
-Priority: Urgent (1)
-```
-
-### Feature Request
-```
-Input:  "Re: Feature request - dark mode"
-Output: "Implement Dark Mode Support in Admin Panel"
-Labels: Feature, Development, Frontend, Email
-Priority: High (2)
+IF sender.domain !== 'weapply.se':
+  - Create project "Client: {domain}" if not exists
+  - Add ticket to client project
+  - IF direct to pm@weapply.se:
+    - Add label: "External Direct"
+    - Consider: New Lead vs spam detection
+  - IF forwarded by internal:
+    - Forwarder = ticket owner
+    - Add label: "Forwarded"
 ```
 
 ---
 
-## Testing
+## Configuration
 
+### Environment Variables
 ```bash
-# View live logs
+PORT=3002
+OPENAI_API_KEY=sk-...
+LINEAR_API_KEY=lin_api_...
+LINEAR_WEBHOOK_SECRET=...
+DEFAULT_LINEAR_TEAM=WeTest
+ENABLE_AI_REFINEMENT=true
+```
+
+### Testing
+```bash
+# View logs
 sudo journalctl -u weapply-pm -f
 
-# Restart after changes
+# Restart service
 npm run build && sudo systemctl restart weapply-pm
 
 # Service status
@@ -177,14 +189,12 @@ sudo systemctl status weapply-pm
 
 ---
 
-## Future Enhancements
+## Cursor Integration
 
-### Phase 2
-- [ ] Auto-assignment based on department label
-- [ ] Duplicate detection for similar titles
-- [ ] SLA tracking with due dates
+This project uses Cursor rules to ensure:
+1. All feature discussions create Linear issues
+2. Work is tracked in "WeApply - AI Refinement" project
+3. Code follows project conventions
+4. Documentation stays updated
 
-### Phase 3
-- [ ] Multi-team routing
-- [ ] Response templates
-- [ ] Client portal integration
+See `.cursorrules` and `.cursor/rules/` for details.

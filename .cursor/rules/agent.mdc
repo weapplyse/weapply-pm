@@ -1,0 +1,73 @@
+---
+description: Agent rules for Weapply PM - AI Refinement project
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# Weapply PM Agent Rules
+
+## Project Management Integration
+
+### Linear Tracking
+- **Project**: WeApply - AI Refinement (ID: 5d992f68-4c78-4294-91d9-294808bf1d49)
+- **Team**: WeTest
+- **Default Assignee**: pelle@weapply.se
+
+### When to Create Linear Issues
+1. **New features** discussed → Create Feature issue
+2. **Bugs discovered** → Create Bug issue
+3. **Improvements suggested** → Create Improvement issue
+4. **Tasks identified** → Create Task issue
+
+### Issue Template
+```
+Title: [Clear, actionable title]
+Project: WeApply - AI Refinement
+Labels: [Type] + [Tech area if applicable]
+Assignee: pelle@weapply.se
+Description:
+## Overview
+[Brief description]
+
+## Requirements
+- Requirement 1
+- Requirement 2
+
+## Implementation
+- Implementation step 1
+- Implementation step 2
+```
+
+## Development Workflow
+
+### Before Making Changes
+1. Check if related Linear issue exists
+2. If not, create one with proper labels
+3. Reference issue ID in commit messages
+
+### After Making Changes
+1. Update Linear issue status
+2. Add implementation notes as comments
+3. Update REFINEMENT_PLAN.md if needed
+
+### Code Changes
+- Always use TypeScript
+- Follow existing code patterns
+- Add console.log with emojis for debugging
+- Test locally before deploying
+
+## Key Contacts
+- **Project Owner**: Pelle Nyman (pelle@weapply.se)
+- **Linear Team**: WeTest
+
+## Current Feature Roadmap
+| Issue | Feature | Priority |
+|-------|---------|----------|
+| WET-17 | Auto-assign internal senders | High |
+| WET-18 | Client project creation | High |
+| WET-19 | Urgency detection | Medium |
+| WET-20 | Attachment handling | Medium |
+| WET-21 | Internal forward detection | High |
+| WET-22 | External direct routing | High |
+| WET-23 | Manual refinement | Low |
+| WET-24 | Prompt improvements | Medium |
