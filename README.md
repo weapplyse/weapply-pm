@@ -16,7 +16,7 @@ AI-powered email refinement for Linear tickets.
                       │ (webhook)
                       ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  https://pm.weapply.se/webhook/linear                       │
+│  https://pm.weapply.se/webhook/linear-webhook                │
 │                                                             │
 │  • Receives webhook from Linear                             │
 │  • Refines content with OpenAI                              │
@@ -49,7 +49,7 @@ Required:
    - Forward `pm@weapply.se` → Linear intake email
 
 2. **Webhook**:
-   - URL: `https://pm.weapply.se/webhook/linear`
+   - URL: `https://pm.weapply.se/webhook/linear-webhook`
    - Events: Issue created
    - Team: WeTest
 
@@ -66,7 +66,7 @@ npm start
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/health` | GET | Health check |
-| `/webhook/linear` | POST | Linear webhook endpoint |
+| `/webhook/linear-webhook` | POST | Linear webhook endpoint |
 
 ## Development
 

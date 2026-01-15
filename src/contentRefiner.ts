@@ -7,16 +7,22 @@ const openai = new OpenAI({
   apiKey: config.openaiApiKey,
 });
 
+// Available labels in WeTest team - use exact names from Linear API
+const AVAILABLE_LABELS = {
+  type: ['Bug', 'Feature', 'Improvement', 'Task', 'Research', 'Epic', 'Change request'],
+  area: ['Frontend', 'Backend', 'Database', 'Admin', 'API', 'Devops', 'UX/UI'],
+  owner: ['Software', 'Production', 'Hardware', 'Embedded', 'Rollout'],
+};
+
 export async function refineEmailContent(email: EmailData): Promise<RefinedContent> {
   if (!config.enableAIRefinement || !config.openaiApiKey) {
-    // Fallback to basic refinement without AI
     return basicRefinement(email);
   }
 
   const emailText = extractTextContent(email);
   const truncatedText = emailText.substring(0, config.maxEmailLength);
   
-  const prompt = `You are helping to convert an email into a well-structured Linear ticket. 
+  const prompt = `You are helping to convert an email into a well-structured Linear ticket for the WeTest team.
 
 Email Details:
 - From: ${email.from.name || email.from.email} <${email.from.email}>
@@ -26,27 +32,34 @@ Email Details:
 Email Content:
 ${truncatedText}
 
-Please provide:
-1. A clear, concise title for the Linear ticket (max 100 characters)
-2. A well-formatted description that includes:
-   - Context from the email
-   - Key information
-   - Any important details
-3. A brief summary (2-3 sentences)
-4. Suggested labels (if any are appropriate, max 3)
-5. Suggested priority (0-4, where 0=No priority, 1=Urgent, 2=High, 3=Normal, 4=Low)
-6. Action items extracted from the email (if any)
-7. Suggested assignee email (if you can infer from context, otherwise leave empty)
+AVAILABLE LABELS (use EXACT names, pick at most ONE from each group):
 
-Format your response as JSON with this structure:
+Type (pick ONE - required):
+${AVAILABLE_LABELS.type.map(l => `  - ${l}`).join('\n')}
+
+Tech Area (pick at most ONE if relevant):
+${AVAILABLE_LABELS.area.map(l => `  - ${l}`).join('\n')}
+
+Owner (pick at most ONE if you know which team):
+${AVAILABLE_LABELS.owner.map(l => `  - ${l}`).join('\n')}
+
+INSTRUCTIONS:
+1. Create a clear, actionable title (max 80 characters, no email prefixes like "Re:" or "Fwd:")
+2. Write a concise summary (2-3 sentences)
+3. Extract concrete action items as tasks
+4. Select appropriate labels from the EXACT list above (max 3 labels)
+5. Suggest priority: 1=Urgent, 2=High, 3=Normal (default), 4=Low
+6. Format the description cleanly - focus on what needs to be done
+
+Format your response as JSON:
 {
-  "title": "ticket title",
-  "description": "formatted description",
-  "summary": "brief summary",
-  "suggestedLabels": ["label1", "label2"],
+  "title": "actionable title",
+  "description": "clean, well-formatted description focusing on the actual request/issue",
+  "summary": "brief summary of what this ticket is about",
+  "suggestedLabels": ["Task", "Backend"],
   "suggestedPriority": 3,
-  "actionItems": ["item1", "item2"],
-  "suggestedAssignee": "email@example.com or empty string"
+  "actionItems": ["specific action 1", "specific action 2"],
+  "suggestedAssignee": ""
 }`;
 
   try {

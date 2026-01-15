@@ -26,7 +26,7 @@ app.get('/', (req, res) => {
     version: '2.0.0',
     endpoints: {
       health: 'GET /health',
-      linearWebhook: 'POST /webhook/linear',
+      linearWebhook: 'POST /webhook/linear-webhook',
     },
   });
 });
@@ -38,7 +38,7 @@ app.listen(config.port, () => {
 ║  Weapply PM - Email to Linear Service                      ║
 ╠════════════════════════════════════════════════════════════╣
 ║  Server running on port ${config.port.toString().padEnd(33)}║
-║  Webhook endpoint: /webhook/linear                         ║
+║  Webhook endpoint: /webhook/linear-webhook                  ║
 ║  AI Refinement: ${config.enableAIRefinement ? 'Enabled' : 'Disabled'}                                  ║
 ║  Linear Team: ${config.defaultLinearTeam.padEnd(36)}║
 ╚════════════════════════════════════════════════════════════╝

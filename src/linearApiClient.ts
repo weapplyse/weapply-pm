@@ -455,7 +455,7 @@ async function getLabelIds(labelNames: string[], teamId: string): Promise<string
   const query = `
     query($teamId: String!) {
       team(id: $teamId) {
-        issueLabels {
+        labels {
           nodes {
             id
             name
@@ -478,8 +478,8 @@ async function getLabelIds(labelNames: string[], teamId: string): Promise<string
       }),
     });
 
-    const result = await response.json() as { data?: { team?: { issueLabels?: { nodes?: Array<{ id: string; name: string }> } } } };
-    const labels = result.data?.team?.issueLabels?.nodes || [];
+    const result = await response.json() as { data?: { team?: { labels?: { nodes?: Array<{ id: string; name: string }> } } } };
+    const labels = result.data?.team?.labels?.nodes || [];
 
     const labelIds = labelNames
       .map((name) => {

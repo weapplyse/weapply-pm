@@ -47,7 +47,7 @@ function verifyWebhookSignature(
  * 3. We refine the content with AI
  * 4. Update the Linear ticket with refined content
  */
-router.post('/linear', async (req: Request, res: Response) => {
+router.post('/linear-webhook', async (req: Request, res: Response) => {
   const startTime = Date.now();
   
   try {
@@ -95,13 +95,24 @@ router.post('/linear', async (req: Request, res: Response) => {
     const issue = issueResult.issue;
     const emailContent = issue.description || issue.title;
 
-    // Check if this looks like an email-created issue
+    // Skip if already refined (check for our marker in description)
+    if (issue.description?.includes('## Summary') && issue.description?.includes('**Original Email**')) {
+      console.log('ℹ️  Issue already refined, skipping');
+      return res.status(200).json({ 
+        message: 'Skipped - issue already refined',
+        issueIdentifier 
+      });
+    }
+
+    // Check if this looks like an email-created issue or needs refinement
     const isFromEmail = 
       emailContent.includes('From:') ||
+      emailContent.includes('mailto:') ||
       emailContent.includes('@') ||
       issue.title.includes('Fwd:') ||
       issue.title.includes('Re:') ||
-      issue.title.includes('FW:');
+      issue.title.includes('FW:') ||
+      issue.title.includes('Fw:');
 
     if (!isFromEmail) {
       console.log('ℹ️  Issue not from email, skipping refinement');
@@ -122,6 +133,8 @@ router.post('/linear', async (req: Request, res: Response) => {
     console.log(`✓ Refined: "${result.ticketData.title}"`);
     console.log(`  Summary: ${(result.refinedContent.summary || '').substring(0, 100)}...`);
     console.log(`  Action items: ${(result.refinedContent.actionItems || []).length}`);
+    console.log(`  Labels: ${JSON.stringify(result.ticketData.labels || [])}`);
+    console.log(`  Priority: ${result.ticketData.priority}`);
 
     // Update the Linear issue
     const updateResult = await updateLinearIssue(issueId, {
