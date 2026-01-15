@@ -38,6 +38,35 @@ Description:
 - Implementation step 2
 ```
 
+## Documentation Requirements
+
+### CRITICAL: Keep Documentation Updated
+
+After implementing any feature or making significant changes:
+
+1. **Update Linear Project Document**
+   - Document ID: `87ad9c07-f9fe-42fe-8ea6-60c1687548fa`
+   - Title: "System Overview"
+   - URL: https://linear.app/weapply/document/system-overview-3181a0fdda51
+   - Must reflect current system state, features, and configuration
+
+2. **Update REFINEMENT_PLAN.md**
+   - Keep feature status current (✅ Done / 🔄 In Progress / 📋 Planned)
+   - Update flow diagrams if logic changes
+   - Document new configuration options
+
+3. **Add Implementation Comments to Linear Issues**
+   - When completing an issue, add a comment with:
+     - What was implemented
+     - Key files changed
+     - Any configuration required
+
+### Documentation Checklist
+- [ ] Linear "System Overview" document updated
+- [ ] REFINEMENT_PLAN.md reflects changes
+- [ ] Linear issue has implementation comment
+- [ ] Any new env vars documented
+
 ## Development Workflow
 
 ### Before Making Changes
@@ -46,9 +75,10 @@ Description:
 3. Reference issue ID in commit messages
 
 ### After Making Changes
-1. Update Linear issue status
+1. Update Linear issue status to Done
 2. Add implementation notes as comments
-3. Update REFINEMENT_PLAN.md if needed
+3. **Update documentation (see above)**
+4. Commit with descriptive message
 
 ### Code Changes
 - Always use TypeScript
@@ -60,14 +90,27 @@ Description:
 - **Project Owner**: Pelle Nyman (pelle@weapply.se)
 - **Linear Team**: WeTest
 
-## Current Feature Roadmap
-| Issue | Feature | Priority |
-|-------|---------|----------|
-| WET-17 | Auto-assign internal senders | High |
-| WET-18 | Client project creation | High |
-| WET-19 | Urgency detection | Medium |
-| WET-20 | Attachment handling | Medium |
-| WET-21 | Internal forward detection | High |
-| WET-22 | External direct routing | High |
-| WET-23 | Manual refinement | Low |
-| WET-24 | Prompt improvements | Medium |
+## Feature Status
+
+### ✅ Completed (Phase 1-3)
+| Issue | Feature |
+|-------|---------|
+| WET-17 | Auto-assign internal senders |
+| WET-18 | Client project creation |
+| WET-19 | Urgency detection |
+| WET-20 | Attachment handling |
+| WET-21 | Internal forward detection |
+| WET-22 | External direct routing |
+| WET-23 | Manual refinement (Refine Queue) |
+| WET-24 | Improved AI prompt |
+
+### 📋 Backlog (Future)
+| Issue | Feature |
+|-------|---------|
+| WET-30 | Spam/marketing filtering |
+| WET-31 | Duplicate detection |
+| WET-32 | Thread tracking |
+| WET-33 | AI image analysis |
+| WET-34 | Slack notifications |
+| WET-35 | Email auto-reply |
+| WET-36 | Analytics dashboard |

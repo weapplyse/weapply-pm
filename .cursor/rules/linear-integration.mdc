@@ -46,6 +46,27 @@ When work is completed on an issue:
 1. Update issue status to "Done" or appropriate state
 2. Add comment with implementation summary
 3. Reference commit/PR if applicable
+4. **Update project documentation** (see Documentation section)
+
+## Documentation Maintenance
+
+### ALWAYS Update After Changes
+
+**Linear Project Document** (System Overview):
+- Document ID: `87ad9c07-f9fe-42fe-8ea6-60c1687548fa`
+- URL: https://linear.app/weapply/document/system-overview-3181a0fdda51
+- Contains: System flow, features, labels, configuration
+- **Must be kept current with implemented features**
+
+Use `mcp_linear_update_document` to update when:
+- New features are implemented
+- Configuration changes
+- Labels or priority rules change
+- System flow is modified
+
+**Local Documentation**:
+- Update `REFINEMENT_PLAN.md` with feature status
+- Update README.md if setup changes
 
 ## Conversation Tracking
 
