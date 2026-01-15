@@ -18,7 +18,7 @@ export function initGmailAPI(credentials: {
   oauth2Client = new google.auth.OAuth2(
     credentials.clientId,
     credentials.clientSecret,
-    'urn:ietf:wg:oauth:2.0:oob' // For server-to-server
+    'https://developers.google.com/oauthplayground' // Must match OAuth Playground redirect URI
   );
 
   oauth2Client.setCredentials({
