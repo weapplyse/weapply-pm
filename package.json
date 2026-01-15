@@ -12,20 +12,26 @@
     "create-ticket": "tsx src/createTicket.ts",
     "gmail-poller": "tsx src/gmailPoller.ts"
   },
-  "keywords": ["email", "linear", "tickets", "ai"],
+  "keywords": [
+    "email",
+    "linear",
+    "tickets",
+    "ai"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "dotenv": "^16.3.1",
     "express": "^4.18.2",
+    "google-auth-library": "^9.4.0",
+    "googleapis": "^129.0.0",
     "mailparser": "^3.6.5",
     "openai": "^4.20.1",
-    "dotenv": "^16.3.1",
-    "zod": "^3.22.4",
-    "googleapis": "^129.0.0",
-    "google-auth-library": "^9.4.0"
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
+    "@types/mailparser": "^3.4.6",
     "@types/node": "^20.10.0",
     "@vercel/node": "^3.0.0",
     "tsx": "^4.7.0",

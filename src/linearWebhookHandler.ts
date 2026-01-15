@@ -15,94 +15,103 @@ function verifyWebhookSignature(
   secret: string
 ): boolean {
   if (!signature || !secret) {
-    console.log('No signature or secret provided, skipping verification');
-    return true; // Skip verification if not configured
+    console.log('⚠️  No signature verification (secret not configured)');
+    return true;
   }
 
   const hmac = crypto.createHmac('sha256', secret);
   const expectedSignature = hmac.update(payload).digest('hex');
   
-  const isValid = crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expectedSignature)
-  );
+  try {
+    const isValid = crypto.timingSafeEqual(
+      Buffer.from(signature),
+      Buffer.from(expectedSignature)
+    );
 
-  if (!isValid) {
-    console.error('Webhook signature verification failed');
+    if (!isValid) {
+      console.error('❌ Webhook signature verification failed');
+    }
+
+    return isValid;
+  } catch {
+    return false;
   }
-
-  return isValid;
 }
 
 /**
- * Webhook endpoint for Linear to trigger when issues are created from email
+ * Linear Webhook Handler
  * 
  * Flow:
- * 1. pm@weapply.se forwards to Linear email → Linear creates ticket
+ * 1. pm@weapply.se → Linear intake email → Linear creates ticket
  * 2. Linear webhook triggers this endpoint
- * 3. We fetch the ticket details and original email
- * 4. Refine with AI and update the ticket
+ * 3. We refine the content with AI
+ * 4. Update the Linear ticket with refined content
  */
-router.post('/linear-webhook', express.raw({ type: 'application/json' }), async (req: Request, res: Response) => {
+router.post('/linear', async (req: Request, res: Response) => {
+  const startTime = Date.now();
+  
   try {
     // Get raw body for signature verification
-    const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+    const rawBody = JSON.stringify(req.body);
     const signature = req.headers['linear-signature'] as string | undefined;
     
-    // Verify signature if secret is configured
+    // Verify signature
     if (config.linearWebhookSecret) {
       if (!verifyWebhookSignature(rawBody, signature, config.linearWebhookSecret)) {
         return res.status(401).json({ error: 'Invalid signature' });
       }
-      console.log('✓ Webhook signature verified');
+      console.log('✓ Signature verified');
     }
 
-    const webhookData = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    const webhookData = req.body;
     
-    console.log('Received Linear webhook:', JSON.stringify(webhookData, null, 2));
-    
-    // Linear webhook payload structure
-    // Check if this is an issue created event
+    // Only process issue creation events
     if (webhookData.type !== 'Issue' || webhookData.action !== 'create') {
-      return res.status(200).json({ message: 'Not an issue creation event' });
+      return res.status(200).json({ 
+        message: 'Ignored - not an issue creation event',
+        type: webhookData.type,
+        action: webhookData.action
+      });
     }
 
     const issueId = webhookData.data?.id;
     const issueIdentifier = webhookData.data?.identifier;
+    const issueTitle = webhookData.data?.title;
 
     if (!issueId) {
-      return res.status(400).json({ error: 'No issue ID provided' });
+      return res.status(400).json({ error: 'No issue ID in webhook payload' });
     }
 
-    console.log(`Processing Linear issue ${issueIdentifier} (${issueId}) created from email`);
+    console.log(`\n📨 Processing issue ${issueIdentifier}: "${issueTitle}"`);
 
-    // Fetch full issue details to get description
+    // Fetch full issue details
     const issueResult = await getIssue(issueId);
     
     if (!issueResult.success || !issueResult.issue) {
-      return res.status(404).json({ error: 'Issue not found' });
+      console.error(`❌ Could not fetch issue: ${issueResult.error}`);
+      return res.status(404).json({ error: 'Issue not found', details: issueResult.error });
     }
 
     const issue = issueResult.issue;
-
-    // Check if issue was created from email
-    // Linear includes email content in description when created from email
-    const isFromEmail = issue.description?.includes('Original email') || 
-                       issue.description?.includes('From:') ||
-                       issue.description?.includes('@') ||
-                       issue.title?.includes('Fwd:') ||
-                       issue.title?.includes('Re:');
-
-    if (!isFromEmail) {
-      console.log('Issue not created from email, skipping refinement');
-      return res.status(200).json({ message: 'Issue not created from email' });
-    }
-
-    // Extract email content from issue description
-    // Linear includes the full email in the description when created from email
     const emailContent = issue.description || issue.title;
 
-    console.log('Processing email content for refinement...');
+    // Check if this looks like an email-created issue
+    const isFromEmail = 
+      emailContent.includes('From:') ||
+      emailContent.includes('@') ||
+      issue.title.includes('Fwd:') ||
+      issue.title.includes('Re:') ||
+      issue.title.includes('FW:');
+
+    if (!isFromEmail) {
+      console.log('ℹ️  Issue not from email, skipping refinement');
+      return res.status(200).json({ 
+        message: 'Skipped - issue not created from email',
+        issueIdentifier 
+      });
+    }
+
+    console.log('🤖 Refining content with AI...');
 
     // Process and refine the email content
     const result = await processEmail(emailContent, {
@@ -110,9 +119,11 @@ router.post('/linear-webhook', express.raw({ type: 'application/json' }), async 
       project: config.defaultLinearProject,
     });
 
-    console.log(`Refined email content: ${result.ticketData.title}`);
+    console.log(`✓ Refined: "${result.ticketData.title}"`);
+    console.log(`  Summary: ${(result.refinedContent.summary || '').substring(0, 100)}...`);
+    console.log(`  Action items: ${(result.refinedContent.actionItems || []).length}`);
 
-    // Update the Linear issue with refined content
+    // Update the Linear issue
     const updateResult = await updateLinearIssue(issueId, {
       title: result.ticketData.title,
       description: result.ticketData.description,
@@ -120,27 +131,35 @@ router.post('/linear-webhook', express.raw({ type: 'application/json' }), async 
       priority: result.ticketData.priority,
     });
 
-    if (updateResult.success) {
-      console.log(`✓ Refined and updated issue ${issueIdentifier}`);
-    } else {
-      console.error(`✗ Failed to update issue: ${updateResult.error}`);
-    }
+    const duration = Date.now() - startTime;
 
-    res.json({
-      success: true,
-      issueId,
-      issueIdentifier,
-      refined: {
-        title: result.ticketData.title,
-        summary: result.refinedContent.summary,
-        actionItems: result.refinedContent.actionItems,
-      },
-      updateResult,
-    });
+    if (updateResult.success) {
+      console.log(`✅ Updated ${issueIdentifier} in ${duration}ms\n`);
+      
+      res.json({
+        success: true,
+        issueIdentifier,
+        refined: {
+          title: result.ticketData.title,
+          summary: result.refinedContent.summary || '',
+          actionItems: result.refinedContent.actionItems || [],
+          priority: result.ticketData.priority,
+        },
+        duration: `${duration}ms`,
+      });
+    } else {
+      console.error(`❌ Failed to update: ${updateResult.error}`);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to update issue',
+        details: updateResult.error,
+        issueIdentifier,
+      });
+    }
   } catch (error) {
-    console.error('Error processing Linear webhook:', error);
+    console.error('❌ Error processing webhook:', error);
     res.status(500).json({
-      error: 'Failed to process webhook',
+      error: 'Internal server error',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
   }
