@@ -302,10 +302,10 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
     // Determine target project based on routing
     const targetProjectId = getTargetProjectId(emailMetadata, hasClientLabel);
     const projectNames: Record<string, string> = {
-      [PROJECT_IDS.MAIL_INBOX]: '📥 Mail Inbox',
-      [PROJECT_IDS.CLIENTS]: '🏢 Clients',
-      [PROJECT_IDS.EXTERNAL]: '🌐 External',
-      [PROJECT_IDS.REFINE_QUEUE]: '🪄 Refine Queue',
+      [PROJECT_IDS.MAIL_INBOX]: 'Mail Inbox',
+      [PROJECT_IDS.CLIENTS]: 'Clients',
+      [PROJECT_IDS.EXTERNAL]: 'External',
+      [PROJECT_IDS.REFINE_QUEUE]: 'Refine Queue',
     };
     console.log(`  📁 Target project: ${projectNames[targetProjectId] || targetProjectId}`);
 

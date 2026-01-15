@@ -11,14 +11,14 @@
 
 | Project | Purpose | Auto-Processed |
 |---------|---------|----------------|
-| 📥 Mail Inbox | Refined emails from pm@weapply.se | ✅ Full AI |
-| 💬 Slack Intake | Tickets from Slack channel | Light cleanup |
-| 🪄 Refine Queue | Manual refinement trigger | ✅ Full AI |
-| 🤖 Linear Automation | Feature development & tracking | ❌ Never |
-| 📝 General | Manual entries | ❌ Never |
-| 📊 Project Management | Internal PM only | ❌ Never |
-| 🏢 Clients | Known client tickets | ✅ Routing |
-| 🌐 External | Unknown external senders | ✅ Routing |
+| Mail Inbox | Refined emails from pm@weapply.se | ✅ Full AI |
+| Slack Intake | Tickets from Slack channel | Light cleanup |
+| Refine Queue | Manual refinement trigger | ✅ Full AI |
+| Linear Automation | Feature development & tracking | ❌ Never |
+| General | Manual entries | ❌ Never |
+| Project Management | Internal PM only | ❌ Never |
+| Clients | Known client tickets | ✅ Routing |
+| External | Unknown external senders | ✅ Routing |
 
 ---
 
@@ -184,11 +184,11 @@ Manual: `Unknown Sender` for personal email domains (gmail, yahoo, etc.)
 IF sender.domain === 'weapply.se':
   - Assign ticket to sender (match by email)
   - Add label: "Email" or "Internal Forward"
-  - Route to: 📥 Mail Inbox
+  - Route to: Mail Inbox
   - IF forwarded:
     - Extract original sender from email body
     - Create client label for original sender domain
-    - Route to: 🏢 Clients (if known) or 🌐 External
+    - Route to: Clients (if known) or External
 ```
 
 ### External Sender
@@ -197,23 +197,23 @@ IF sender.domain !== 'weapply.se':
   - Check if business domain (not gmail/yahoo/etc)
   - IF business domain:
     - Create/find label "Client: {domain}"
-    - Route to: 🏢 Clients
+    - Route to: Clients
   - ELSE (personal email):
     - Add label: "Unknown Sender"
-    - Route to: 🌐 External
+    - Route to: External
 ```
 
 ### Project Routing Matrix
 
 | Sender Type | Is Forwarded | Has Client Label | Target Project |
 |-------------|--------------|------------------|----------------|
-| Internal | No | - | 📥 Mail Inbox |
-| Internal | Yes | Yes | 🏢 Clients |
-| Internal | Yes | No | 🌐 External |
-| External | No | Yes | 🏢 Clients |
-| External | No | No | 🌐 External |
-| External | Yes | Yes | 🏢 Clients |
-| External | Yes | No | 🌐 External |
+| Internal | No | - | Mail Inbox |
+| Internal | Yes | Yes | Clients |
+| Internal | Yes | No | External |
+| External | No | Yes | Clients |
+| External | No | No | External |
+| External | Yes | Yes | Clients |
+| External | Yes | No | External |
 
 ---
 
@@ -263,7 +263,7 @@ sudo systemctl status weapply-pm
 For manually created tickets or content that needs AI refinement:
 
 1. Create a new ticket in Linear with your content
-2. Add the ticket to the **🪄 Refine Queue** project
+2. Add the ticket to the **Refine Queue** project
 3. The webhook will automatically:
    - Process the content with AI
    - Create an actionable title
