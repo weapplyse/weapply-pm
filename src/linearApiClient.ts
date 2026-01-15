@@ -750,3 +750,130 @@ async function getLabelIds(labelNames: string[], teamId: string): Promise<string
     return [];
   }
 }
+
+/**
+ * Get or create a client label by name
+ * Returns label ID and whether it was created
+ */
+export async function getOrCreateClientLabel(
+  labelName: string,
+  teamId?: string
+): Promise<{ id: string; created: boolean } | null> {
+  // First, check if label exists (workspace-wide)
+  const query = `
+    query {
+      issueLabels(first: 250) {
+        nodes {
+          id
+          name
+        }
+      }
+    }
+  `;
+
+  try {
+    const response = await fetch(LINEAR_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: LINEAR_API_KEY,
+      },
+      body: JSON.stringify({ query }),
+    });
+
+    const result = await response.json() as { data?: { issueLabels?: { nodes?: Array<{ id: string; name: string }> } } };
+    const labels = result.data?.issueLabels?.nodes || [];
+
+    // Look for existing label (case-insensitive)
+    const existing = labels.find(
+      (l) => l.name.toLowerCase() === labelName.toLowerCase()
+    );
+
+    if (existing) {
+      return { id: existing.id, created: false };
+    }
+
+    // Create new label (workspace-level, no teamId)
+    const createMutation = `
+      mutation CreateIssueLabel($input: IssueLabelCreateInput!) {
+        issueLabelCreate(input: $input) {
+          success
+          issueLabel {
+            id
+            name
+          }
+        }
+      }
+    `;
+
+    const createResponse = await fetch(LINEAR_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: LINEAR_API_KEY,
+      },
+      body: JSON.stringify({
+        query: createMutation,
+        variables: {
+          input: {
+            name: labelName,
+            color: '#f2c94c', // Yellow for client labels
+          },
+        },
+      }),
+    });
+
+    const createResult = await createResponse.json() as {
+      data?: { issueLabelCreate?: { success: boolean; issueLabel?: { id: string } } };
+      errors?: Array<{ message: string }>;
+    };
+
+    if (createResult.data?.issueLabelCreate?.success && createResult.data.issueLabelCreate.issueLabel) {
+      console.log(`🏷️  Created new client label: ${labelName}`);
+      return { id: createResult.data.issueLabelCreate.issueLabel.id, created: true };
+    }
+
+    if (createResult.errors) {
+      console.error('Error creating client label:', createResult.errors);
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error in getOrCreateClientLabel:', error);
+    return null;
+  }
+}
+
+/**
+ * Check if a client label exists for a domain
+ */
+export async function checkClientLabelExists(labelName: string): Promise<boolean> {
+  const query = `
+    query {
+      issueLabels(first: 250) {
+        nodes {
+          name
+        }
+      }
+    }
+  `;
+
+  try {
+    const response = await fetch(LINEAR_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: LINEAR_API_KEY,
+      },
+      body: JSON.stringify({ query }),
+    });
+
+    const result = await response.json() as { data?: { issueLabels?: { nodes?: Array<{ name: string }> } } };
+    const labels = result.data?.issueLabels?.nodes || [];
+
+    return labels.some(l => l.name.toLowerCase() === labelName.toLowerCase());
+  } catch (error) {
+    console.error('Error checking client label:', error);
+    return false;
+  }
+}

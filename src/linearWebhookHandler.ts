@@ -1,9 +1,9 @@
 import express, { Request, Response } from 'express';
 import crypto from 'crypto';
 import { processEmail } from './emailHandler.js';
-import { updateLinearIssue, getIssue, getUserIdByEmail, getOrCreateProject, addIssueToProject, getTeamId, createSubIssue, removeFromProject } from './linearApiClient.js';
+import { updateLinearIssue, getIssue, getUserIdByEmail, addIssueToProject, getTeamId, createSubIssue, removeFromProject, getOrCreateClientLabel, checkClientLabelExists } from './linearApiClient.js';
 import { config } from './config.js';
-import { extractEmailMetadata, getSourceLabels, getClientProjectName, shouldCreateClientProject, EmailMetadata } from './emailRouting.js';
+import { extractEmailMetadata, getSourceLabels, getClientLabelName, shouldCreateClientLabel, getTargetProjectId, EmailMetadata, PROJECT_IDS } from './emailRouting.js';
 import { analyzeAttachments, formatAttachmentsMarkdown, generateAttachmentSubIssues, AttachmentAnalysis } from './attachmentHandler.js';
 import { EmailAttachment } from './types.js';
 
@@ -144,6 +144,8 @@ function verifyWebhookSignature(
  * 2. Linear webhook triggers this endpoint
  * 3. We refine the content with AI
  * 4. Update the Linear ticket with refined content
+ * 5. Route to appropriate project (Mail Inbox, Clients, External)
+ * 6. Add client labels for external senders
  */
 router.post('/linear-webhook', async (req: Request, res: Response) => {
   const startTime = Date.now();
@@ -173,10 +175,9 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
     }
 
     // Check for manual refinement trigger (issue added to Refine Queue project)
-    const REFINE_QUEUE_PROJECT_ID = '5ddfdf70-180b-472b-83a5-5a3ecbe70384';
     const isManualRefinement = 
       webhookData.action === 'update' && 
-      webhookData.data?.projectId === REFINE_QUEUE_PROJECT_ID;
+      webhookData.data?.projectId === PROJECT_IDS.REFINE_QUEUE;
 
     // Only process issue creation events OR manual refinement
     if (webhookData.action !== 'create' && !isManualRefinement) {
@@ -277,17 +278,49 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
       project: config.defaultLinearProject,
     });
 
+    // Handle client labels (instead of client projects)
+    let hasClientLabel = false;
+    let clientLabelName: string | undefined;
+    const additionalLabels: string[] = [];
+    
+    if (emailMetadata.clientDomain && shouldCreateClientLabel(emailMetadata.clientDomain)) {
+      clientLabelName = getClientLabelName(emailMetadata.clientDomain);
+      
+      // Check if label exists or create it
+      const labelResult = await getOrCreateClientLabel(clientLabelName);
+      if (labelResult) {
+        hasClientLabel = true;
+        additionalLabels.push(clientLabelName);
+        console.log(`  🏷️  Client label: ${clientLabelName} (${labelResult.created ? 'created' : 'existing'})`);
+      }
+    } else if (emailMetadata.isExternalDirect || (emailMetadata.isForwarded && !emailMetadata.isInternalForward)) {
+      // External sender without a client domain (e.g., gmail) - add Unknown Sender label
+      additionalLabels.push('Unknown Sender');
+      console.log(`  🏷️  Adding Unknown Sender label`);
+    }
+
+    // Determine target project based on routing
+    const targetProjectId = getTargetProjectId(emailMetadata, hasClientLabel);
+    const projectNames: Record<string, string> = {
+      [PROJECT_IDS.MAIL_INBOX]: '📥 Mail Inbox',
+      [PROJECT_IDS.CLIENTS]: '🏢 Clients',
+      [PROJECT_IDS.EXTERNAL]: '🌐 External',
+      [PROJECT_IDS.REFINE_QUEUE]: '🪄 Refine Queue',
+    };
+    console.log(`  📁 Target project: ${projectNames[targetProjectId] || targetProjectId}`);
+
     // Add source labels based on email routing
     const sourceLabels = getSourceLabels(emailMetadata);
     
     // Filter out any source labels that AI might have suggested (we add them ourselves)
     const aiLabels = (result.ticketData.labels || []).filter(l => 
-      !['Email', 'Internal Forward', 'External Direct', 'Forwarded', 'Internal'].includes(l)
+      !['Email', 'Internal Forward', 'External Direct', 'Forwarded', 'Internal', 'Unknown Sender'].includes(l) &&
+      !l.startsWith('Client:') // Don't duplicate client labels
     );
     
-    // Combine: AI labels first, then source labels
-    // Limit to 4-5 labels max to avoid conflicts
-    const allLabels = [...aiLabels.slice(0, 4), ...sourceLabels];
+    // Combine: AI labels first, then additional labels (client/unknown), then source labels
+    // Limit to avoid conflicts
+    const allLabels = [...aiLabels.slice(0, 3), ...additionalLabels, ...sourceLabels];
     // Remove duplicates
     const uniqueLabels = [...new Set(allLabels)];
 
@@ -317,21 +350,6 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
       }
     }
 
-    // Handle client project creation if applicable
-    let clientProjectId: string | undefined;
-    if (emailMetadata.clientDomain && shouldCreateClientProject(emailMetadata.clientDomain)) {
-      const projectName = getClientProjectName(emailMetadata.clientDomain);
-      const teamId = await getTeamId(config.defaultLinearTeam);
-      
-      if (teamId) {
-        const projectResult = await getOrCreateProject(projectName, teamId);
-        if (projectResult) {
-          clientProjectId = projectResult.id;
-          console.log(`  📁 Client project: ${projectName} (${projectResult.created ? 'created' : 'existing'})`);
-        }
-      }
-    }
-
     // Update the Linear issue
     const updateResult = await updateLinearIssue(issueId, {
       title: result.ticketData.title,
@@ -341,9 +359,10 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
       assignee: assigneeEmail,
     });
 
-    // Add to client project if created
-    if (clientProjectId && updateResult.success) {
-      await addIssueToProject(issueId, clientProjectId);
+    // Add to target project (not client project anymore)
+    if (updateResult.success && !isManualRefinement) {
+      await addIssueToProject(issueId, targetProjectId);
+      console.log(`  ✓ Added to ${projectNames[targetProjectId]}`);
     }
 
     // Create sub-issues for actionable attachments
@@ -414,6 +433,8 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
           summary: result.refinedContent.summary || '',
           actionItems: result.refinedContent.actionItems || [],
           priority: result.ticketData.priority,
+          targetProject: projectNames[targetProjectId],
+          clientLabel: clientLabelName,
         },
         duration: `${duration}ms`,
       });

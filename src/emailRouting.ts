@@ -5,7 +5,8 @@
  * - Internal vs external senders
  * - Forwarded vs direct emails
  * - Original sender extraction from forwarded emails
- * - Domain-based client project assignment
+ * - Client label assignment (not projects)
+ * - Project routing based on sender type
  */
 
 export interface EmailMetadata {
@@ -28,10 +29,22 @@ export interface EmailMetadata {
   
   // For assignment
   assignToEmail?: string;        // Who should be assigned
-  clientDomain?: string;         // Client domain for project creation
+  clientDomain?: string;         // Client domain for label creation
 }
 
 const INTERNAL_DOMAIN = 'weapply.se';
+
+// Project IDs for the new structure
+export const PROJECT_IDS = {
+  MAIL_INBOX: '1f70f9a4-c945-402f-a0a5-77f0f207f1ea',
+  SLACK_INTAKE: '76d888f2-2482-4c29-bebd-c5dc3a6436d9',
+  REFINE_QUEUE: '5ddfdf70-180b-472b-83a5-5a3ecbe70384',
+  LINEAR_AUTOMATION: '5d992f68-4c78-4294-91d9-294808bf1d49',
+  GENERAL: '8b02c3f0-a9db-49b5-8026-a2f5cacda2f5',
+  PROJECT_MANAGEMENT: '335e96f1-490d-41a8-8676-248329f37e4c',
+  CLIENTS: '5186127d-5e90-4d63-8b20-bc522c2e4a5d',
+  EXTERNAL: '977387e2-8409-4a2d-9661-9fe98bbd0870',
+};
 
 /**
  * Extract email metadata from Linear issue content
@@ -204,18 +217,44 @@ export function getSourceLabels(metadata: EmailMetadata): string[] {
 }
 
 /**
- * Generate client project name from domain
+ * Get the target project ID based on email routing
  */
-export function getClientProjectName(domain: string): string {
-  // Clean up domain for project name
+export function getTargetProjectId(metadata: EmailMetadata, hasClientLabel: boolean): string {
+  // Internal emails (not forwarded) go to Mail Inbox
+  if (metadata.isInternal && !metadata.isForwarded) {
+    return PROJECT_IDS.MAIL_INBOX;
+  }
+  
+  // Internal forwards with known client go to Clients project
+  if (metadata.isInternalForward && metadata.clientDomain) {
+    return hasClientLabel ? PROJECT_IDS.CLIENTS : PROJECT_IDS.EXTERNAL;
+  }
+  
+  // External direct emails
+  if (metadata.isExternalDirect) {
+    // Known client domain -> Clients project
+    // Unknown domain -> External project
+    return hasClientLabel ? PROJECT_IDS.CLIENTS : PROJECT_IDS.EXTERNAL;
+  }
+  
+  // Default: Mail Inbox for all other refined emails
+  return PROJECT_IDS.MAIL_INBOX;
+}
+
+/**
+ * Generate client label name from domain
+ */
+export function getClientLabelName(domain: string): string {
+  // Clean up domain for label name
   const cleanDomain = domain.replace(/^www\./, '');
   return `Client: ${cleanDomain}`;
 }
 
 /**
- * Check if domain should have a client project
+ * Check if domain should have a client label
+ * Skip common personal email providers
  */
-export function shouldCreateClientProject(domain: string): boolean {
+export function shouldCreateClientLabel(domain: string): boolean {
   if (!domain) return false;
   
   // Skip internal domain
@@ -225,12 +264,18 @@ export function shouldCreateClientProject(domain: string): boolean {
   const skipDomains = [
     'gmail.com', 'googlemail.com',
     'yahoo.com', 'yahoo.se',
-    'hotmail.com', 'outlook.com', 'live.com',
-    'icloud.com', 'me.com',
+    'hotmail.com', 'outlook.com', 'live.com', 'msn.com',
+    'icloud.com', 'me.com', 'mac.com',
     'protonmail.com', 'proton.me',
+    'aol.com', 'mail.com',
+    'zoho.com', 'yandex.com',
   ];
   
   if (skipDomains.includes(domain.toLowerCase())) return false;
   
   return true;
 }
+
+// Backwards compatibility - deprecated, use getClientLabelName
+export const getClientProjectName = getClientLabelName;
+export const shouldCreateClientProject = shouldCreateClientLabel;
