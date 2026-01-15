@@ -409,7 +409,10 @@ async function getProjectId(projectNameOrId: string, teamId: string): Promise<st
   }
 }
 
-async function getUserId(emailOrName: string): Promise<string | null> {
+/**
+ * Get user ID by email or name
+ */
+export async function getUserIdByEmail(emailOrName: string): Promise<string | null> {
   const query = `
     query {
       users {
@@ -448,6 +451,141 @@ async function getUserId(emailOrName: string): Promise<string | null> {
   } catch (error) {
     console.error('Error fetching users:', error);
     return null;
+  }
+}
+
+// Alias for backwards compatibility
+async function getUserId(emailOrName: string): Promise<string | null> {
+  return getUserIdByEmail(emailOrName);
+}
+
+/**
+ * Get or create a project by name
+ */
+export async function getOrCreateProject(
+  projectName: string,
+  teamId: string
+): Promise<{ id: string; created: boolean } | null> {
+  // First try to find existing project
+  const query = `
+    query {
+      projects(first: 100) {
+        nodes {
+          id
+          name
+        }
+      }
+    }
+  `;
+
+  try {
+    const response = await fetch(LINEAR_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: LINEAR_API_KEY,
+      },
+      body: JSON.stringify({ query }),
+    });
+
+    const result = await response.json() as { data?: { projects?: { nodes?: Array<{ id: string; name: string }> } } };
+    const projects = result.data?.projects?.nodes || [];
+
+    const existing = projects.find(
+      (p) => p.name.toLowerCase() === projectName.toLowerCase()
+    );
+
+    if (existing) {
+      return { id: existing.id, created: false };
+    }
+
+    // Create new project
+    const createMutation = `
+      mutation CreateProject($input: ProjectCreateInput!) {
+        projectCreate(input: $input) {
+          success
+          project {
+            id
+            name
+          }
+        }
+      }
+    `;
+
+    const createResponse = await fetch(LINEAR_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: LINEAR_API_KEY,
+      },
+      body: JSON.stringify({
+        query: createMutation,
+        variables: {
+          input: {
+            name: projectName,
+            teamIds: [teamId],
+          },
+        },
+      }),
+    });
+
+    const createResult = await createResponse.json() as {
+      data?: { projectCreate?: { success: boolean; project?: { id: string } } };
+      errors?: Array<{ message: string }>;
+    };
+
+    if (createResult.data?.projectCreate?.success && createResult.data.projectCreate.project) {
+      console.log(`📁 Created new project: ${projectName}`);
+      return { id: createResult.data.projectCreate.project.id, created: true };
+    }
+
+    if (createResult.errors) {
+      console.error('Error creating project:', createResult.errors);
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error in getOrCreateProject:', error);
+    return null;
+  }
+}
+
+/**
+ * Add issue to a project
+ */
+export async function addIssueToProject(
+  issueId: string,
+  projectId: string
+): Promise<boolean> {
+  const mutation = `
+    mutation UpdateIssue($id: String!, $input: IssueUpdateInput!) {
+      issueUpdate(id: $id, input: $input) {
+        success
+      }
+    }
+  `;
+
+  try {
+    const response = await fetch(LINEAR_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: LINEAR_API_KEY,
+      },
+      body: JSON.stringify({
+        query: mutation,
+        variables: {
+          id: issueId,
+          input: { projectId },
+        },
+      }),
+    });
+
+    const result = await response.json() as { data?: { issueUpdate?: { success: boolean } } };
+    return result.data?.issueUpdate?.success || false;
+  } catch (error) {
+    console.error('Error adding issue to project:', error);
+    return false;
   }
 }
 

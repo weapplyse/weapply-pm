@@ -1,8 +1,9 @@
 import express, { Request, Response } from 'express';
 import crypto from 'crypto';
 import { processEmail } from './emailHandler.js';
-import { updateLinearIssue, getIssue } from './linearApiClient.js';
+import { updateLinearIssue, getIssue, getUserIdByEmail, getOrCreateProject, addIssueToProject, getTeamId } from './linearApiClient.js';
 import { config } from './config.js';
+import { extractEmailMetadata, getSourceLabels, getClientProjectName, shouldCreateClientProject, EmailMetadata } from './emailRouting.js';
 
 const router = express.Router();
 
@@ -122,6 +123,18 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
       });
     }
 
+    // Extract email metadata for routing
+    const emailMetadata = extractEmailMetadata(emailContent, issue.title);
+    
+    console.log('📧 Email Metadata:');
+    console.log(`  Sender: ${emailMetadata.senderEmail} (${emailMetadata.isInternal ? 'internal' : 'external'})`);
+    console.log(`  Forwarded: ${emailMetadata.isForwarded ? 'Yes' : 'No'}`);
+    if (emailMetadata.isForwarded) {
+      console.log(`  Forwarder: ${emailMetadata.forwarderEmail}`);
+      console.log(`  Original sender: ${emailMetadata.originalSenderEmail || 'unknown'}`);
+    }
+    console.log(`  Route: ${emailMetadata.isInternalForward ? 'Internal Forward' : emailMetadata.isExternalDirect ? 'External Direct' : emailMetadata.isInternal ? 'Internal' : 'External'}`);
+
     console.log('🤖 Refining content with AI...');
 
     // Process and refine the email content
@@ -130,19 +143,65 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
       project: config.defaultLinearProject,
     });
 
+    // Add source labels based on email routing
+    const sourceLabels = getSourceLabels(emailMetadata);
+    
+    // Filter out any source labels that AI might have suggested (we add them ourselves)
+    const aiLabels = (result.ticketData.labels || []).filter(l => 
+      !['Email', 'Internal Forward', 'External Direct', 'Forwarded', 'Internal'].includes(l)
+    );
+    
+    // Combine: AI labels first, then source labels
+    // Limit to 4-5 labels max to avoid conflicts
+    const allLabels = [...aiLabels.slice(0, 4), ...sourceLabels];
+    // Remove duplicates
+    const uniqueLabels = [...new Set(allLabels)];
+
     console.log(`✓ Refined: "${result.ticketData.title}"`);
     console.log(`  Summary: ${(result.refinedContent.summary || '').substring(0, 100)}...`);
     console.log(`  Action items: ${(result.refinedContent.actionItems || []).length}`);
-    console.log(`  Labels: ${JSON.stringify(result.ticketData.labels || [])}`);
+    console.log(`  Labels: ${JSON.stringify(uniqueLabels)}`);
     console.log(`  Priority: ${result.ticketData.priority}`);
+
+    // Determine assignee based on email routing
+    let assigneeEmail: string | undefined;
+    if (emailMetadata.assignToEmail) {
+      // Check if this email belongs to a Linear user
+      const userId = await getUserIdByEmail(emailMetadata.assignToEmail);
+      if (userId) {
+        assigneeEmail = emailMetadata.assignToEmail;
+        console.log(`  👤 Auto-assigning to: ${assigneeEmail}`);
+      }
+    }
+
+    // Handle client project creation if applicable
+    let clientProjectId: string | undefined;
+    if (emailMetadata.clientDomain && shouldCreateClientProject(emailMetadata.clientDomain)) {
+      const projectName = getClientProjectName(emailMetadata.clientDomain);
+      const teamId = await getTeamId(config.defaultLinearTeam);
+      
+      if (teamId) {
+        const projectResult = await getOrCreateProject(projectName, teamId);
+        if (projectResult) {
+          clientProjectId = projectResult.id;
+          console.log(`  📁 Client project: ${projectName} (${projectResult.created ? 'created' : 'existing'})`);
+        }
+      }
+    }
 
     // Update the Linear issue
     const updateResult = await updateLinearIssue(issueId, {
       title: result.ticketData.title,
       description: result.ticketData.description,
-      labels: result.ticketData.labels,
+      labels: uniqueLabels,
       priority: result.ticketData.priority,
+      assignee: assigneeEmail,
     });
+
+    // Add to client project if created
+    if (clientProjectId && updateResult.success) {
+      await addIssueToProject(issueId, clientProjectId);
+    }
 
     const duration = Date.now() - startTime;
 

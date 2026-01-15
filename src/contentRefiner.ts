@@ -116,13 +116,13 @@ ${AVAILABLE_LABELS.phase.join(', ')}
 BILLING (pick if finance-related):
 ${AVAILABLE_LABELS.billing.join(', ')}
 
-Always include "Email" as source label since this comes from email.
+NOTE: Do NOT include source labels (Email, Meeting Notes, etc.) - those are added automatically.
 
 INSTRUCTIONS:
 1. Create a clear, actionable title (max 80 characters, no email prefixes like "Re:" or "Fwd:")
 2. Write a concise summary (2-3 sentences)
 3. Extract concrete action items as tasks
-4. Select appropriate labels from the EXACT list above (max 3 labels)
+4. Select 2-4 labels: MUST include TYPE, then add relevant DEPARTMENT/CLIENT/TECH/PHASE/BILLING
 5. Suggest priority: 1=Urgent, 2=High, 3=Normal (default), 4=Low
 6. Format the description cleanly - focus on what needs to be done
 
@@ -131,7 +131,7 @@ Format your response as JSON:
   "title": "actionable title",
   "description": "clean, well-formatted description focusing on the actual request/issue",
   "summary": "brief summary of what this ticket is about",
-  "suggestedLabels": ["Bug", "Development", "Active Client", "Backend", "Email"],
+  "suggestedLabels": ["Task", "Development", "Active Client", "Backend"],
   "suggestedPriority": 3,
   "actionItems": ["specific action 1", "specific action 2"],
   "suggestedAssignee": ""
