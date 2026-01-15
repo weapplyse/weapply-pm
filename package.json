@@ -9,7 +9,8 @@
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "type-check": "tsc --noEmit",
-    "create-ticket": "tsx src/createTicket.ts"
+    "create-ticket": "tsx src/createTicket.ts",
+    "gmail-poller": "tsx src/gmailPoller.ts"
   },
   "keywords": ["email", "linear", "tickets", "ai"],
   "author": "",
@@ -19,7 +20,9 @@
     "mailparser": "^3.6.5",
     "openai": "^4.20.1",
     "dotenv": "^16.3.1",
-    "zod": "^3.22.4"
+    "zod": "^3.22.4",
+    "googleapis": "^129.0.0",
+    "google-auth-library": "^9.4.0"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",

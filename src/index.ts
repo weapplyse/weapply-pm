@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import { processEmail } from './emailHandler.js';
 import { createLinearTicketViaAPI } from './linearApiClient.js';
 import { config } from './config.js';
+import gmailRouter from './gmailApiEndpoint.js';
 
 const app = express();
 
@@ -14,6 +15,9 @@ app.use(express.text({ type: 'text/plain', limit: '10mb' }));
 app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Gmail API endpoint
+app.use('/gmail', gmailRouter);
 
 // Main webhook endpoint for receiving emails
 app.post('/webhook/email', async (req: Request, res: Response) => {
