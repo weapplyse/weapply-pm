@@ -1,0 +1,22 @@
+{
+  "folders": [
+    {
+      "uri": "vscode-remote://ssh-remote+ubuntu@app04/home/ubuntu/weapply-pm",
+      "name": "weapply-pm (app04)"
+    }
+  ],
+  "settings": {
+    "remote.SSH.remotePlatform": {
+      "app04": "linux"
+    },
+    "remote.SSH.defaultExtensions": [
+      "dbaeumer.vscode-eslint",
+      "esbenp.prettier-vscode"
+    ],
+    "files.exclude": {
+      "**/node_modules": true,
+      "**/dist": true
+    },
+    "typescript.tsdk": "node_modules/typescript/lib"
+  }
+}
