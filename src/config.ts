@@ -13,4 +13,12 @@ export const config = {
   enableAIRefinement: process.env.ENABLE_AI_REFINEMENT !== 'false',
   autoCreateTickets: process.env.AUTO_CREATE_TICKETS !== 'false',
   maxEmailLength: parseInt(process.env.MAX_EMAIL_LENGTH || '5000', 10),
+  
+  // Linear webhook secret for signature verification
+  linearWebhookSecret: process.env.LINEAR_WEBHOOK_SECRET || '',
+  
+  // Gmail API credentials
+  googleClientId: process.env.GOOGLE_CLIENT_ID || '',
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+  googleRefreshToken: process.env.GOOGLE_REFRESH_TOKEN || '',
 };
