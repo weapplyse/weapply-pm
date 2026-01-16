@@ -541,6 +541,60 @@ async function getUserId(emailOrName: string): Promise<string | null> {
 }
 
 /**
+ * Get user info by ID - useful when we have creatorId from webhook
+ */
+export async function getUserById(userId: string): Promise<{
+  id: string;
+  email: string;
+  name: string;
+  displayName?: string;
+} | null> {
+  const query = `
+    query GetUser($id: String!) {
+      user(id: $id) {
+        id
+        email
+        name
+        displayName
+      }
+    }
+  `;
+
+  try {
+    const response = await fetch(LINEAR_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: LINEAR_API_KEY,
+      },
+      body: JSON.stringify({
+        query,
+        variables: { id: userId },
+      }),
+    });
+
+    const result = await response.json() as {
+      data?: { user?: { id: string; email: string; name: string; displayName?: string } };
+      errors?: Array<{ message: string }>;
+    };
+
+    if (result.data?.user) {
+      return {
+        id: result.data.user.id,
+        email: result.data.user.email,
+        name: result.data.user.name,
+        displayName: result.data.user.displayName,
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error fetching user by ID:', error);
+    return null;
+  }
+}
+
+/**
  * Get or create a project by name
  */
 export async function getOrCreateProject(

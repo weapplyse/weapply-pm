@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import crypto from 'crypto';
 import { processEmailData } from './emailHandler.js';
-import { updateLinearIssue, getIssue, getUserIdByEmail, addIssueToProject, getTeamId, createSubIssue, removeFromProject, getOrCreateClientLabel, checkClientLabelExists, linkRelatedIssues, hasSubIssueWithPrefix } from './linearApiClient.js';
+import { updateLinearIssue, getIssue, getUserIdByEmail, getUserById, addIssueToProject, getTeamId, createSubIssue, removeFromProject, getOrCreateClientLabel, checkClientLabelExists, linkRelatedIssues, hasSubIssueWithPrefix } from './linearApiClient.js';
 import { config } from './config.js';
 import { extractEmailMetadata, getSourceLabels, getClientLabelName, shouldCreateClientLabel, getTargetProjectId, EmailMetadata, PROJECT_IDS } from './emailRouting.js';
 import { analyzeAttachments, formatAttachmentsMarkdown, formatAttachmentsSummaryLine, formatAttachmentPreviewsMarkdown, generateAttachmentSubIssues, AttachmentAnalysis } from './attachmentHandler.js';
@@ -526,10 +526,33 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
     const originalDescription = issue.description || '';
 
     // Extract email metadata for routing
-    const emailMetadata = extractEmailMetadata(emailContent, issue.title);
+    let emailMetadata = extractEmailMetadata(emailContent, issue.title);
+    
+    // Fallback: If sender extraction failed but we have creatorId, look up creator info
+    // This handles cases where the email content doesn't have proper From: headers
+    if (!emailMetadata.senderEmail && creatorId) {
+      console.log('📧 Sender extraction failed, looking up creator...');
+      const creatorInfo = await getUserById(creatorId);
+      if (creatorInfo?.email) {
+        const creatorDomain = creatorInfo.email.split('@')[1]?.toLowerCase() || '';
+        const isCreatorInternal = creatorDomain === 'weapply.se';
+        
+        // Update metadata with creator info
+        emailMetadata = {
+          ...emailMetadata,
+          senderEmail: creatorInfo.email,
+          senderName: creatorInfo.displayName || creatorInfo.name,
+          senderDomain: creatorDomain,
+          isInternal: isCreatorInternal,
+          isExternalDirect: !isCreatorInternal && !emailMetadata.isForwarded,
+          assignToEmail: isCreatorInternal ? creatorInfo.email : emailMetadata.assignToEmail,
+        };
+        console.log(`  ✓ Found creator: ${creatorInfo.email}`);
+      }
+    }
     
     console.log('📧 Email Metadata:');
-    console.log(`  Sender: ${emailMetadata.senderEmail} (${emailMetadata.isInternal ? 'internal' : 'external'})`);
+    console.log(`  Sender: ${emailMetadata.senderEmail || '(unknown)'} (${emailMetadata.isInternal ? 'internal' : 'external'})`);
     console.log(`  Forwarded: ${emailMetadata.isForwarded ? 'Yes' : 'No'}`);
     if (emailMetadata.isForwarded) {
       console.log(`  Forwarder: ${emailMetadata.forwarderEmail}`);
