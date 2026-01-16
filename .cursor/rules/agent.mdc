@@ -15,7 +15,10 @@ AI-powered email → Linear ticket refinement system.
 | Team | WeTest |
 | Project | Linear Automation |
 | Assignee | pelle@weapply.se |
+| Service | weapply-pm (systemd) |
+| Base URL | https://pm.weapply.se |
 | Endpoint | `POST /webhook/linear-webhook` |
+| Health | `GET /health` |
 
 ## Key Files
 
@@ -23,8 +26,41 @@ AI-powered email → Linear ticket refinement system.
 |------|---------|
 | `src/contentRefiner.ts` | GPT-4o prompt (main AI logic) |
 | `src/linearWebhookHandler.ts` | Webhook processing |
+| `src/emailHandler.ts` | Email parsing + ticket building |
+| `src/emailParser.ts` | Raw email parsing |
 | `src/emailRouting.ts` | Sender detection & routing |
 | `src/urgencyDetector.ts` | Priority keyword analysis |
+| `src/attachmentHandler.ts` | Attachment analysis + sub-issues |
+| `src/imageAnalyzer.ts` | GPT-4o Vision image analysis |
+| `src/threadTracker.ts` | Thread matching + relations |
+| `src/linearApiClient.ts` | Linear GraphQL API |
+| `src/config.ts` | Environment config |
+| `nginx/pm.weapply.se.conf` | Reverse proxy setup |
+| `env.template` | Runtime env template |
+
+## Email -> Linear Flow
+
+1. Email arrives at `pm@weapply.se`
+2. Linear intake creates the issue
+3. Webhook refines + routes the ticket
+4. Issue moves to Backlog + correct project + labels
+5. Attachments summarized + sub-issues (if actionable)
+
+## Runbook (Debugging)
+
+```bash
+curl -sS https://pm.weapply.se/health
+sudo journalctl -u weapply-pm --since "10 minutes ago"
+sudo systemctl restart weapply-pm
+```
+
+Look for log lines like `Processing issue`, `Processed ... attachments`, `Updated`.
+
+## Attachments & Images
+
+- Attachments are extracted from Linear issue attachments + description fallback.
+- Attachment sizes are unknown (shown as `0 B`).
+- Image analysis requires a valid OpenAI key; Linear uploads may need inline fetch.
 
 ## Development
 
@@ -37,6 +73,7 @@ npm run test                                        # Tests
 ## When Creating Issues
 
 Only create Linear issues when user explicitly asks for a feature/task.
+Only commit changes when the user explicitly asks.
 
 ```
 Team: WeTest

@@ -10,6 +10,26 @@ export interface ProcessEmailResult {
 }
 
 /**
+ * Process already-parsed email data and prepare for Linear ticket
+ */
+export async function processEmailData(
+  emailData: EmailData,
+  options?: {
+    team?: string;
+    project?: string;
+  }
+): Promise<ProcessEmailResult> {
+  const refinedContent = await refineEmailContent(emailData);
+  const ticketData = prepareTicketData(refinedContent, emailData, options);
+
+  return {
+    emailData,
+    refinedContent,
+    ticketData,
+  };
+}
+
+/**
  * Process email content and prepare for Linear ticket
  */
 export async function processEmail(
@@ -22,17 +42,7 @@ export async function processEmail(
   // Parse email
   const emailData = await parseEmail(rawEmail);
 
-  // Refine content with AI
-  const refinedContent = await refineEmailContent(emailData);
-
-  // Prepare Linear ticket data
-  const ticketData = prepareTicketData(refinedContent, emailData, options);
-
-  return {
-    emailData,
-    refinedContent,
-    ticketData,
-  };
+  return processEmailData(emailData, options);
 }
 
 /**
@@ -43,17 +53,33 @@ function prepareTicketData(
   emailData: EmailData,
   options?: { team?: string; project?: string }
 ): LinearTicketData {
-  // Build description with structured format
+  return {
+    title: refinedContent.title || emailData.subject,
+    description: buildTicketDescription(refinedContent, emailData),
+    team: options?.team || config.defaultLinearTeam,
+    project: options?.project || config.defaultLinearProject || undefined,
+    labels: refinedContent.suggestedLabels,
+    priority: refinedContent.suggestedPriority,
+  };
+}
+
+function buildTicketDescription(refinedContent: RefinedContent, emailData: EmailData): string {
+  const body = (refinedContent.description || '').trim();
+  const hasSummary = /##\s*Summary/i.test(body);
+  const hasActions = /##\s*(Action Items|Actions)/i.test(body);
+
+  if (hasSummary || hasActions) {
+    return body;
+  }
+
   const descriptionParts: string[] = [];
 
-  // Summary
   if (refinedContent.summary) {
     descriptionParts.push('## Summary');
     descriptionParts.push(refinedContent.summary);
     descriptionParts.push('');
   }
 
-  // Action items
   const actionItems = refinedContent.actionItems || [];
   if (actionItems.length > 0) {
     descriptionParts.push('## Action Items');
@@ -63,27 +89,15 @@ function prepareTicketData(
     descriptionParts.push('');
   }
 
-  // Main description
-  descriptionParts.push('## Details');
-  descriptionParts.push(refinedContent.description);
-  descriptionParts.push('');
-
-  // Original email info
-  descriptionParts.push('---');
-  descriptionParts.push('');
-  descriptionParts.push('**Original Email**');
-  descriptionParts.push(`- From: ${emailData.from.name || emailData.from.email}`);
-  descriptionParts.push(`- Subject: ${emailData.subject}`);
-  if (emailData.date) {
-    descriptionParts.push(`- Date: ${emailData.date.toISOString()}`);
+  if (body) {
+    descriptionParts.push('## Details');
+    descriptionParts.push(body);
+    descriptionParts.push('');
   }
 
-  return {
-    title: refinedContent.title || emailData.subject,
-    description: descriptionParts.join('\n'),
-    team: options?.team || config.defaultLinearTeam,
-    project: options?.project || config.defaultLinearProject || undefined,
-    labels: refinedContent.suggestedLabels,
-    priority: refinedContent.suggestedPriority,
-  };
+  if (descriptionParts.length === 0) {
+    return emailData.subject || '(No details provided)';
+  }
+
+  return descriptionParts.join('\n').trim();
 }

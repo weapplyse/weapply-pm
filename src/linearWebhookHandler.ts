@@ -1,11 +1,11 @@
 import express, { Request, Response } from 'express';
 import crypto from 'crypto';
-import { processEmail } from './emailHandler.js';
+import { processEmailData } from './emailHandler.js';
 import { updateLinearIssue, getIssue, getUserIdByEmail, addIssueToProject, getTeamId, createSubIssue, removeFromProject, getOrCreateClientLabel, checkClientLabelExists, linkRelatedIssues, hasSubIssueWithPrefix } from './linearApiClient.js';
 import { config } from './config.js';
 import { extractEmailMetadata, getSourceLabels, getClientLabelName, shouldCreateClientLabel, getTargetProjectId, EmailMetadata, PROJECT_IDS } from './emailRouting.js';
 import { analyzeAttachments, formatAttachmentsMarkdown, generateAttachmentSubIssues, AttachmentAnalysis } from './attachmentHandler.js';
-import { EmailAttachment } from './types.js';
+import { EmailAttachment, EmailData } from './types.js';
 import { findRelatedTickets, recordTicket, formatRelatedTicketsMarkdown, extractMessageId, RelatedTicket } from './threadTracker.js';
 import { analyzeImagesInContent, formatImageAnalysisMarkdown, ImageAnalysis } from './imageAnalyzer.js';
 import { notifySlackUrgent } from './slackNotifier.js';
@@ -82,6 +82,143 @@ function isValidAttachment(filename: string): boolean {
   if (!VALID_ATTACHMENT_EXTENSIONS.includes(ext)) return false;
   
   return true;
+}
+
+/**
+ * Extract a filename candidate from text (title/subtitle)
+ */
+function extractFilenameFromText(value?: string): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+
+  const cleaned = trimmed
+    .replace(/^[<("\[]+/, '')
+    .replace(/[>)"\]]+$/, '')
+    .trim();
+
+  if (/\.[A-Za-z0-9]{1,10}$/.test(cleaned)) {
+    return cleaned;
+  }
+
+  const match = cleaned.match(/([^\s"'<>()[\]]+\.[A-Za-z0-9]{1,10})/);
+  return match?.[1];
+}
+
+/**
+ * Extract a filename from a URL path or query parameter
+ */
+function extractFilenameFromUrl(url: string): string | undefined {
+  if (!url) return undefined;
+
+  try {
+    const parsed = new URL(url);
+    const params = parsed.searchParams;
+
+    const filenameParam = params.get('filename') || params.get('file') || params.get('name');
+    if (filenameParam) {
+      const decoded = decodeURIComponent(filenameParam);
+      return extractFilenameFromText(decoded) || decoded;
+    }
+
+    const dispositionParam =
+      params.get('response-content-disposition') || params.get('content-disposition');
+    if (dispositionParam) {
+      const match = dispositionParam.match(/filename\*?=(?:UTF-8''|")?([^;"']+)/i);
+      if (match?.[1]) {
+        const decoded = decodeURIComponent(match[1]);
+        return extractFilenameFromText(decoded) || decoded;
+      }
+    }
+
+    const lastSegment = parsed.pathname.split('/').pop();
+    if (lastSegment) {
+      const decoded = decodeURIComponent(lastSegment);
+      return extractFilenameFromText(decoded);
+    }
+  } catch {
+    const urlMatch = url.match(/\/([^\/?#]+\.[A-Za-z0-9]{1,10})(?:[?#]|$)/);
+    if (urlMatch?.[1]) {
+      return urlMatch[1];
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Extract a filename from Linear attachment fields
+ */
+function getAttachmentFilename(att: { title: string; subtitle?: string; url: string }): string | undefined {
+  return (
+    extractFilenameFromText(att.title) ||
+    extractFilenameFromText(att.subtitle) ||
+    extractFilenameFromUrl(att.url)
+  );
+}
+
+function buildEmailDataFromIssue(
+  issue: { title: string; description?: string },
+  emailContent: string,
+  metadata: EmailMetadata,
+  attachments: EmailAttachment[]
+): EmailData {
+  return {
+    from: {
+      name: metadata.senderName || undefined,
+      email: metadata.senderEmail || 'unknown@unknown',
+    },
+    to: [],
+    subject: issue.title || '(No Subject)',
+    text: emailContent,
+    attachments: attachments.length > 0 ? attachments : undefined,
+    date: undefined,
+  };
+}
+
+function extractEmailAttachments(
+  attachments: Array<{ title: string; subtitle?: string; url: string }> | undefined,
+  emailContent: string
+): EmailAttachment[] {
+  const emailAttachments: EmailAttachment[] = [];
+
+  if (attachments && attachments.length > 0) {
+    console.log(`📎 Attachments found in Linear: ${attachments.length}`);
+    for (const att of attachments) {
+      const filename = getAttachmentFilename(att);
+      if (!filename || !isValidAttachment(filename)) {
+        continue;
+      }
+
+      if (emailAttachments.some(existing => existing.filename === filename)) {
+        continue;
+      }
+
+      emailAttachments.push({
+        filename,
+        contentType: guessContentType(filename),
+        content: Buffer.from(''), // We don't download the actual content
+        size: 0, // Size unknown without downloading
+      });
+    }
+  }
+
+  const fallbackAttachments = extractAttachmentInfo(emailContent);
+  for (const fallback of fallbackAttachments) {
+    if (!emailAttachments.some(existing => existing.filename === fallback.filename)) {
+      emailAttachments.push(fallback);
+    }
+  }
+
+  if (emailAttachments.length === 0) {
+    console.log('  ℹ️  No file attachments detected');
+  } else if (fallbackAttachments.length > 0 && (!attachments || attachments.length === 0)) {
+    console.log(`📎 Attachments detected from description: ${fallbackAttachments.length}`);
+  } else if (fallbackAttachments.length > 0 && attachments && attachments.length > 0) {
+    console.log(`📎 Added ${fallbackAttachments.length} attachment(s) from description fallback`);
+  }
+
+  return emailAttachments;
 }
 
 /**
@@ -307,8 +444,9 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
 
     // Skip if already refined (check for our marker in description)
     // For manual refinement: check if "## Summary" AND "## Action Items" are both present (refined format)
-    const hasRefinedMarkers = issue.description?.includes('## Summary') && 
-                              (issue.description?.includes('## Action Items') || issue.description?.includes('**Original Email**'));
+    const hasSummaryMarker = issue.description?.includes('## Summary');
+    const hasActionsMarker = issue.description?.includes('## Action Items') || issue.description?.includes('## Actions');
+    const hasRefinedMarkers = hasSummaryMarker && hasActionsMarker;
     
     if (hasRefinedMarkers) {
       console.log('ℹ️  Issue already refined, skipping');
@@ -353,83 +491,29 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
     }
     console.log(`  Route: ${emailMetadata.isInternalForward ? 'Internal Forward' : emailMetadata.isExternalDirect ? 'External Direct' : emailMetadata.isInternal ? 'Internal' : 'External'}`);
 
-    // Extract attachment info from Linear issue attachments (not from description text)
-    // Linear stores email attachments separately in the issue.attachments field
+    // Extract attachment info from Linear issue attachments (and description fallback)
     let attachmentAnalyses: AttachmentAnalysis[] = [];
-    
-    if (issue.attachments && issue.attachments.length > 0) {
-      console.log(`📎 Attachments found in Linear: ${issue.attachments.length}`);
-      
-      // Convert Linear attachments to EmailAttachment format
-      const emailAttachments: EmailAttachment[] = issue.attachments
-        .filter(att => {
-          // Skip the "original email" attachment (usually has subtitle like "pelle@weapply.se")
-          // We only want actual file attachments
-          if (att.subtitle && att.subtitle.includes('@')) {
-            return false;
-          }
-          
-          // Extract filename from title or URL
-          let filename = att.title;
-          if (!filename || filename === att.subtitle) {
-            // Try to extract from URL
-            const urlMatch = att.url.match(/\/([^\/]+\.(pdf|doc|docx|xls|xlsx|csv|png|jpg|jpeg|gif|zip|txt|md|json|xml|ppt|pptx))(\?|$)/i);
-            if (urlMatch) {
-              filename = urlMatch[1];
-            } else {
-              // Fallback: use title or skip
-              filename = att.title || 'unknown';
-            }
-          }
-          
-          // Validate it's a real attachment (not just a link)
-          return isValidAttachment(filename);
-        })
-        .map(att => {
-          // Extract filename from title or URL
-          let filename = att.title;
-          if (!filename || filename === att.subtitle) {
-            const urlMatch = att.url.match(/\/([^\/]+\.(pdf|doc|docx|xls|xlsx|csv|png|jpg|jpeg|gif|zip|txt|md|json|xml|ppt|pptx))(\?|$)/i);
-            if (urlMatch) {
-              filename = urlMatch[1];
-            } else {
-              filename = att.title || 'unknown';
-            }
-          }
-          
-          return {
-            filename,
-            contentType: guessContentType(filename),
-            content: Buffer.from(''), // We don't download the actual content
-            size: 0, // Size unknown without downloading
-          };
-        });
-      
-      if (emailAttachments.length > 0) {
-        attachmentAnalyses = analyzeAttachments(emailAttachments);
-        console.log(`📎 Processed ${attachmentAnalyses.length} file attachment(s):`);
-        for (const att of attachmentAnalyses) {
-          console.log(`  - ${att.icon} ${att.filename} ${att.isActionable ? '⚡' : ''}`);
-        }
-      } else {
-        console.log(`  ℹ️  No file attachments found (only email links)`);
-      }
-    } else {
-      // Fallback: try to extract from description text (for backwards compatibility)
-      const attachmentInfo = extractAttachmentInfo(emailContent);
-      if (attachmentInfo.length > 0) {
-        attachmentAnalyses = analyzeAttachments(attachmentInfo);
-        console.log(`📎 Attachments detected from description: ${attachmentAnalyses.length}`);
-        for (const att of attachmentAnalyses) {
-          console.log(`  - ${att.icon} ${att.filename} (${att.size}) ${att.isActionable ? '⚡' : ''}`);
-        }
+    const emailAttachments = extractEmailAttachments(issue.attachments, emailContent);
+
+    if (emailAttachments.length > 0) {
+      attachmentAnalyses = analyzeAttachments(emailAttachments);
+      console.log(`📎 Processed ${attachmentAnalyses.length} file attachment(s):`);
+      for (const att of attachmentAnalyses) {
+        console.log(`  - ${att.icon} ${att.filename} ${att.isActionable ? '⚡' : ''}`);
       }
     }
 
     console.log('🤖 Refining content with AI...');
 
     // Process and refine the email content
-    const result = await processEmail(emailContent, {
+    const emailData = buildEmailDataFromIssue(
+      issue,
+      emailContent,
+      emailMetadata,
+      emailAttachments
+    );
+
+    const result = await processEmailData(emailData, {
       team: config.defaultLinearTeam,
       project: config.defaultLinearProject,
     });

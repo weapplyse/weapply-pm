@@ -15,7 +15,7 @@ Only create issues when explicitly requested.
   "team": "WeTest",
   "project": "Linear Automation",
   "assignee": "pelle@weapply.se",
-  "labels": ["Development", "<type>"]
+  "labels": ["<Type>", "<Tech>", "<Dept (if applicable)>"]
 }
 ```
 
@@ -25,7 +25,13 @@ Only create issues when explicitly requested.
 - `Task` - General work
 - `Improvement` - Enhancement
 
+## Label Guidance
+
+- Use one Type label and one Tech label when applicable.
+- Add a Dept label only when ownership is clear.
+- Do not add Request Source or Client labels manually (auto-set by webhook).
+
 ## After Work Complete
 
 1. Mark issue as "Done" if applicable
-2. Commit changes with descriptive message
+2. Only commit changes when the user explicitly asks

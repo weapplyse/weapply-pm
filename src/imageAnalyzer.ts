@@ -12,6 +12,9 @@ const openai = new OpenAI({
   apiKey: config.openaiApiKey,
 });
 
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024; // 4 MB
+const IMAGE_FETCH_TIMEOUT_MS = 8000;
+
 export interface ImageAnalysis {
   filename: string;
   url: string;
@@ -38,6 +41,71 @@ export function isAnalyzableImage(filename: string, contentType?: string): boole
   }
   
   return false;
+}
+
+function isLinearUploadUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname.endsWith('linear.app');
+  } catch {
+    return url.includes('linear.app');
+  }
+}
+
+function guessImageContentType(filename: string): string {
+  const ext = filename.toLowerCase().split('.').pop();
+  const map: Record<string, string> = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    webp: 'image/webp',
+  };
+  return map[ext || ''] || 'application/octet-stream';
+}
+
+function isInvalidImageUrlError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const err = error as { code?: string; message?: string; error?: { code?: string } };
+  return (
+    err.code === 'invalid_image_url' ||
+    err.error?.code === 'invalid_image_url' ||
+    (typeof err.message === 'string' && err.message.includes('invalid_image_url'))
+  );
+}
+
+async function fetchImageAsDataUrl(url: string, filename: string): Promise<string | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), IMAGE_FETCH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) {
+      console.log(`⚠️  Unable to download image (${response.status}) for ${filename}`);
+      return null;
+    }
+
+    const contentLength = response.headers.get('content-length');
+    if (contentLength && Number(contentLength) > MAX_IMAGE_BYTES) {
+      console.log(`⚠️  Image too large to analyze (${contentLength} bytes): ${filename}`);
+      return null;
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    if (arrayBuffer.byteLength > MAX_IMAGE_BYTES) {
+      console.log(`⚠️  Image too large to analyze (${arrayBuffer.byteLength} bytes): ${filename}`);
+      return null;
+    }
+
+    const contentType = response.headers.get('content-type') || guessImageContentType(filename);
+    const base64 = Buffer.from(arrayBuffer).toString('base64');
+    return `data:${contentType};base64,${base64}`;
+  } catch (error) {
+    console.log(`⚠️  Failed to download image for analysis: ${filename}`, error);
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 /**
@@ -97,8 +165,7 @@ export async function analyzeImage(
     return null;
   }
 
-  try {
-    const systemPrompt = `You are an image analyzer for a project management system. Analyze the provided image and determine:
+  const systemPrompt = `You are an image analyzer for a project management system. Analyze the provided image and determine:
 
 1. **Type**: Is this a screenshot, UI mockup, error screen, document scan, or photo?
 2. **Description**: Describe what you see in 1-2 sentences.
@@ -114,10 +181,11 @@ Respond in JSON format:
   "confidence": "high|medium|low"
 }`;
 
-    const userPrompt = context 
-      ? `Analyze this image (${filename}) in the context of: ${context}`
-      : `Analyze this image (${filename})`;
+  const userPrompt = context 
+    ? `Analyze this image (${filename}) in the context of: ${context}`
+    : `Analyze this image (${filename})`;
 
+  const runAnalysis = async (url: string): Promise<ImageAnalysis | null> => {
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',  // GPT-4 with vision
       messages: [
@@ -126,7 +194,7 @@ Respond in JSON format:
           role: 'user',
           content: [
             { type: 'text', text: userPrompt },
-            { type: 'image_url', image_url: { url: imageUrl, detail: 'auto' } },
+            { type: 'image_url', image_url: { url, detail: 'auto' } },
           ],
         },
       ],
@@ -156,6 +224,28 @@ Respond in JSON format:
       suggestedActions: parsed.suggestedActions || undefined,
       confidence: parsed.confidence || 'low',
     };
+  };
+
+  try {
+    let imageInputUrl = imageUrl;
+    if (isLinearUploadUrl(imageUrl)) {
+      const inlineUrl = await fetchImageAsDataUrl(imageUrl, filename);
+      if (inlineUrl) {
+        imageInputUrl = inlineUrl;
+      }
+    }
+
+    try {
+      return await runAnalysis(imageInputUrl);
+    } catch (error) {
+      if (imageInputUrl === imageUrl && isInvalidImageUrlError(error)) {
+        const inlineUrl = await fetchImageAsDataUrl(imageUrl, filename);
+        if (inlineUrl) {
+          return await runAnalysis(inlineUrl);
+        }
+      }
+      throw error;
+    }
   } catch (error) {
     console.error(`❌ Error analyzing image ${filename}:`, error);
     return null;
