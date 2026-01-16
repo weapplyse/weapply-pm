@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import crypto from 'crypto';
 import { processEmail } from './emailHandler.js';
-import { updateLinearIssue, getIssue, getUserIdByEmail, addIssueToProject, getTeamId, createSubIssue, removeFromProject, getOrCreateClientLabel, checkClientLabelExists, linkRelatedIssues } from './linearApiClient.js';
+import { updateLinearIssue, getIssue, getUserIdByEmail, addIssueToProject, getTeamId, createSubIssue, removeFromProject, getOrCreateClientLabel, checkClientLabelExists, linkRelatedIssues, hasSubIssueWithPrefix } from './linearApiClient.js';
 import { config } from './config.js';
 import { extractEmailMetadata, getSourceLabels, getClientLabelName, shouldCreateClientLabel, getTargetProjectId, EmailMetadata, PROJECT_IDS } from './emailRouting.js';
 import { analyzeAttachments, formatAttachmentsMarkdown, generateAttachmentSubIssues, AttachmentAnalysis } from './attachmentHandler.js';
@@ -511,17 +511,18 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
       console.log(`  ✓ Added to ${projectNames[targetProjectId]}`);
     }
 
-    // Create sub-issues for actionable attachments
+    // Create sub-issues for actionable attachments (max 3 to prevent spam)
+    const MAX_ATTACHMENT_SUBISSUES = 3;
     if (updateResult.success && attachmentAnalyses.length > 0) {
       const subIssues = generateAttachmentSubIssues(attachmentAnalyses);
-      const actionableCount = subIssues.length;
+      const limitedSubIssues = subIssues.slice(0, MAX_ATTACHMENT_SUBISSUES);
       
-      if (actionableCount > 0) {
-        console.log(`📋 Creating ${actionableCount} attachment sub-issue(s)...`);
+      if (limitedSubIssues.length > 0) {
+        console.log(`📋 Creating ${limitedSubIssues.length} attachment sub-issue(s)${subIssues.length > MAX_ATTACHMENT_SUBISSUES ? ` (limited from ${subIssues.length})` : ''}...`);
         
         const teamId = await getTeamId(config.defaultLinearTeam);
         if (teamId) {
-          for (const subIssue of subIssues) {
+          for (const subIssue of limitedSubIssues) {
             try {
               const subResult = await createSubIssue(
                 teamId,
@@ -568,21 +569,26 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
 
     // For manual refinement: create sub-issue with original content and remove from Refine Queue
     if (isManualRefinement && updateResult.success) {
-      console.log('📝 Creating sub-issue with original content...');
-      
       const teamId = await getTeamId(config.defaultLinearTeam);
       if (teamId) {
-        // Create sub-issue with original content
-        const originalSubIssue = await createSubIssue(
-          teamId,
-          issueId,
-          `Original: ${originalTitle.substring(0, 60)}`,
-          `## Original Content (Pre-Refinement)\n\n**Original Title:** ${originalTitle}\n\n**Original Description:**\n\n${originalDescription || '(No description)'}`,
-          ['Documentation']
-        );
+        // Check if "Original:" sub-issue already exists (prevent duplicates)
+        const hasOriginalSubIssue = await hasSubIssueWithPrefix(issueId, 'Original:');
         
-        if (originalSubIssue.success) {
-          console.log('  ✓ Created original content sub-issue');
+        if (!hasOriginalSubIssue) {
+          console.log('📝 Creating sub-issue with original content...');
+          const originalSubIssue = await createSubIssue(
+            teamId,
+            issueId,
+            `Original: ${originalTitle.substring(0, 60)}`,
+            `## Original Content (Pre-Refinement)\n\n**Original Title:** ${originalTitle}\n\n**Original Description:**\n\n${originalDescription || '(No description)'}`,
+            ['Documentation']
+          );
+          
+          if (originalSubIssue.success) {
+            console.log('  ✓ Created original content sub-issue');
+          }
+        } else {
+          console.log('ℹ️  Original sub-issue already exists, skipping');
         }
         
         // Remove from Refine Queue by clearing the project

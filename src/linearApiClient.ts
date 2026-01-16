@@ -336,6 +336,46 @@ export async function getIssue(issueId: string): Promise<{
   }
 }
 
+/**
+ * Check if an issue has any sub-issues with a title starting with given prefix
+ */
+export async function hasSubIssueWithPrefix(issueId: string, titlePrefix: string): Promise<boolean> {
+  try {
+    const query = `
+      query($id: String!) {
+        issue(id: $id) {
+          children {
+            nodes {
+              title
+            }
+          }
+        }
+      }
+    `;
+
+    const response = await fetch(LINEAR_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: LINEAR_API_KEY,
+      },
+      body: JSON.stringify({
+        query,
+        variables: { id: issueId },
+      }),
+    });
+
+    const result = await response.json() as {
+      data?: { issue?: { children?: { nodes?: Array<{ title: string }> } } };
+    };
+
+    const children = result.data?.issue?.children?.nodes || [];
+    return children.some(child => child.title.startsWith(titlePrefix));
+  } catch {
+    return false;
+  }
+}
+
 async function getTeamId(teamNameOrId: string): Promise<string | null> {
   const query = `
     query {
