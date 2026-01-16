@@ -164,6 +164,12 @@ ${AVAILABLE_LABELS.billing.map(l => `• ${l}`).join('\n')}
 - Bad: "FW: RE: RE: Quick question about the thing" (cleanup needed)
 - Bad: "Need help!!!!" (unclear what's needed)
 
+## LANGUAGE DETECTION
+**IMPORTANT**: Detect the language of the email content.
+- If the email is primarily in **Swedish**, write the title, description, summary, and action items in **Swedish**.
+- If the email is primarily in **English** or any other language, respond in **English**.
+- Match the tone and formality of the original email.
+
 ## DESCRIPTION FORMAT
 Structure the description as:
 1. **Context**: Brief background (1-2 sentences)
@@ -194,7 +200,7 @@ Respond with valid JSON:
 
   try {
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4o',
       messages: [
         {
           role: 'system',
