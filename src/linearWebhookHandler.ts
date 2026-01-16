@@ -12,6 +12,45 @@ import { analyzeImagesInContent, formatImageAnalysisMarkdown, ImageAnalysis } fr
 const router = express.Router();
 
 /**
+ * Valid file extensions that we consider as attachments
+ */
+const VALID_ATTACHMENT_EXTENSIONS = [
+  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',  // Documents
+  'zip', 'rar', '7z', 'tar', 'gz',                      // Archives
+  'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp',    // Images
+  'sketch', 'fig', 'psd', 'ai', 'xd',                   // Design files
+  'txt', 'md', 'csv', 'json', 'xml',                    // Text/data
+  'mp3', 'wav', 'mp4', 'mov', 'avi',                    // Media
+];
+
+/**
+ * Check if a string looks like an actual file attachment
+ */
+function isValidAttachment(filename: string): boolean {
+  // Skip email addresses
+  if (filename.includes('@')) return false;
+  
+  // Skip URLs (www., http, etc.)
+  if (filename.toLowerCase().startsWith('www.')) return false;
+  if (filename.toLowerCase().startsWith('http')) return false;
+  
+  // Skip common domain TLDs that aren't file extensions
+  const domainTLDs = ['com', 'org', 'net', 'io', 'se', 'no', 'dk', 'de', 'uk', 'fi', 
+                      'fr', 'es', 'it', 'nl', 'be', 'at', 'ch', 'eu', 'co', 'us', 
+                      'ca', 'au', 'nz', 'jp', 'cn', 'kr', 'ru', 'br', 'mx', 'in',
+                      'nr', 'info', 'biz', 'app', 'dev'];
+  
+  const ext = filename.split('.').pop()?.toLowerCase();
+  if (!ext) return false;
+  
+  // Must be a valid attachment extension, not a domain TLD
+  if (domainTLDs.includes(ext)) return false;
+  if (!VALID_ATTACHMENT_EXTENSIONS.includes(ext)) return false;
+  
+  return true;
+}
+
+/**
  * Extract attachment information from Linear email description
  * Linear includes attachments as links like: [filename.pdf](url) or mentions them in text
  */
@@ -25,8 +64,7 @@ function extractAttachmentInfo(content: string): EmailAttachment[] {
   
   while ((match = linkPattern.exec(content)) !== null) {
     const filename = match[1].trim();
-    // Skip common non-attachment links
-    if (!filename.match(/\.(html|htm|com|org|net|io)$/i)) {
+    if (isValidAttachment(filename) && !attachments.some(a => a.filename === filename)) {
       attachments.push({
         filename,
         contentType: guessContentType(filename),
@@ -41,7 +79,7 @@ function extractAttachmentInfo(content: string): EmailAttachment[] {
   const attachedPattern = /(?:attached?|attachment):\s*([^\s]+\.[a-zA-Z0-9]+)/gi;
   while ((match = attachedPattern.exec(content)) !== null) {
     const filename = match[1].trim();
-    if (!attachments.some(a => a.filename === filename)) {
+    if (isValidAttachment(filename) && !attachments.some(a => a.filename === filename)) {
       attachments.push({
         filename,
         contentType: guessContentType(filename),
@@ -56,9 +94,7 @@ function extractAttachmentInfo(content: string): EmailAttachment[] {
   const filePattern = /(?:see|review|check|attached|find)\s+(?:\[)?([a-zA-Z0-9_-]+\.[a-zA-Z0-9]+)(?:\])?/gi;
   while ((match = filePattern.exec(content)) !== null) {
     const filename = match[1].trim();
-    const validExtensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'zip', 'png', 'jpg', 'jpeg', 'gif', 'sketch', 'fig', 'psd', 'ai'];
-    const ext = filename.split('.').pop()?.toLowerCase();
-    if (ext && validExtensions.includes(ext) && !attachments.some(a => a.filename === filename)) {
+    if (isValidAttachment(filename) && !attachments.some(a => a.filename === filename)) {
       attachments.push({
         filename,
         contentType: guessContentType(filename),
