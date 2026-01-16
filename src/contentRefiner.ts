@@ -171,12 +171,25 @@ ${AVAILABLE_LABELS.billing.map(l => `• ${l}`).join('\n')}
 - Match the tone and formality of the original email.
 
 ## DESCRIPTION FORMAT
-Structure the description as:
-1. **Context**: Brief background (1-2 sentences)
-2. **Request/Issue**: What needs to be done or what's wrong
-3. **Details**: Relevant specifics (steps to reproduce, requirements, etc.)
-4. **Attachments**: If any, briefly note what's attached
-5. **Original Sender**: If forwarded, who originally sent it
+Keep it **tight and minimal**. The original email is preserved as an attachment.
+
+Structure:
+\`\`\`markdown
+## Summary
+One sentence with the key request/context.
+
+## Actions
+- [ ] First action item
+- [ ] Second action item  
+- [ ] Third action item (if needed)
+\`\`\`
+
+**Rules:**
+- NO redundant details (original is attached)
+- NO "Original Email" section
+- NO sender/recipient info in description
+- Max 3-5 action items, be specific
+- If forwarded, mention who needs action in Summary
 ${urgencyContext}
 
 ## PRIORITY SCALE
@@ -189,12 +202,12 @@ ${urgencyContext}
 
 Respond with valid JSON:
 {
-  "title": "Clear, actionable title describing the work",
-  "description": "Well-formatted description with context and details",
-  "summary": "1-2 sentence summary for quick scanning",
-  "suggestedLabels": ["Support", "Development", "Active Client", "Backend"],
+  "title": "Clear actionable title (max 80 chars)",
+  "description": "## Summary\\n\\nOne sentence summary.\\n\\n## Actions\\n\\n- [ ] Action 1\\n- [ ] Action 2",
+  "summary": "One sentence summary (same as in description)",
+  "suggestedLabels": ["Meeting", "Sales"],
   "suggestedPriority": 3,
-  "actionItems": ["First concrete action", "Second concrete action"],
+  "actionItems": ["Action 1", "Action 2"],
   "suggestedAssignee": ""
 }`;
 
@@ -204,14 +217,17 @@ Respond with valid JSON:
       messages: [
         {
           role: 'system',
-          content: `You are an expert project manager at a software development agency. Your role is to:
-1. Convert incoming emails into clear, actionable Linear tickets
-2. Extract the core request or issue from often messy email threads
-3. Identify the type of work, relevant technology, and urgency level
-4. Write professional descriptions that developers can act on immediately
-5. Always respond with valid JSON in the exact format requested
+          content: `You are an expert project manager. Convert emails into **tight, minimal** Linear tickets.
 
-Focus on clarity and actionability. A good ticket should tell someone exactly what to do without reading the original email.`,
+Rules:
+1. Extract the core request - be brief
+2. Write a clear Summary (1 sentence)
+3. List specific Actions as checkboxes
+4. NO redundant info - original email is attached
+5. Match the email's language (Swedish → Swedish output)
+6. Always respond with valid JSON
+
+Keep it scannable. Less is more.`,
         },
         {
           role: 'user',
