@@ -619,6 +619,7 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
       [PROJECT_IDS.EXTERNAL]: 'External',
       [PROJECT_IDS.REFINE_QUEUE]: 'Refine Queue',
       [PROJECT_IDS.SLACK_INTAKE]: 'Slack Intake',
+      [PROJECT_IDS.GENERAL]: 'General',
     };
     console.log(`  📁 Target project: ${projectNames[targetProjectId] || targetProjectId}`);
 
@@ -726,10 +727,11 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
       state: 'Backlog',  // Move from Triage to Backlog after refinement
     });
 
-    // Add to target project (not client project anymore)
-    if (updateResult.success && !isManualRefinement) {
+    // Add to target project based on routing (Mail Inbox, Clients, External, etc.)
+    // For manual refinement: this happens before removing from Refine Queue
+    if (updateResult.success) {
       await addIssueToProject(issueId, targetProjectId);
-      console.log(`  ✓ Added to ${projectNames[targetProjectId]}`);
+      console.log(`  ✓ Added to ${projectNames[targetProjectId] || 'General'}`);
     }
 
     // Create sub-issues for actionable attachments (max 3 to prevent spam)
