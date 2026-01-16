@@ -421,7 +421,8 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
     // Filter out any source labels that AI might have suggested (we add them ourselves)
     const aiLabels = (result.ticketData.labels || []).filter(l => 
       !['Email', 'Internal Forward', 'External Direct', 'Forwarded', 'Internal', 'Unknown Sender', 'Slack'].includes(l) &&
-      !l.startsWith('Client:') // Don't duplicate client labels
+      !l.startsWith('Client:') && // Don't duplicate client labels
+      !l.startsWith('Request Source') // Don't duplicate source labels (handled by getSourceLabels)
     );
     
     // Combine: AI labels first, then additional labels (client/unknown), then source labels

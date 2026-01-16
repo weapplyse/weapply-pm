@@ -201,18 +201,20 @@ export function extractDomain(email: string): string {
 /**
  * Get source labels based on email metadata
  * Returns exactly ONE source label to avoid conflicts
+ * Uses full label names including parent group "Request Source →"
  */
 export function getSourceLabels(metadata: EmailMetadata): string[] {
   // Only return ONE label from the Source group (they're exclusive)
+  // Must use full name format: "Request Source → {label}"
   if (metadata.isInternalForward) {
-    return ['Internal Forward'];
+    return ['Request Source → Internal Forward'];
   } else if (metadata.isExternalDirect) {
-    return ['External Direct'];
+    return ['Request Source → External Direct'];
   } else if (metadata.isForwarded) {
-    return ['Forwarded'];
+    return ['Request Source → Forwarded'];
   } else {
     // Default: just Email for internal direct or other cases
-    return ['Email'];
+    return ['Request Source → Email'];
   }
 }
 

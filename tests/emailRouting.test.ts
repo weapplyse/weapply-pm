@@ -110,7 +110,7 @@ describe('emailRouting', () => {
         forwarderDomain: 'weapply.se',
       } as any;
       
-      expect(getSourceLabels(metadata)).toEqual(['Internal Forward']);
+      expect(getSourceLabels(metadata)).toEqual(['Request Source → Internal Forward']);
     });
 
     it('should return External Direct label', () => {
@@ -123,7 +123,7 @@ describe('emailRouting', () => {
         isExternalDirect: true,
       } as any;
       
-      expect(getSourceLabels(metadata)).toEqual(['External Direct']);
+      expect(getSourceLabels(metadata)).toEqual(['Request Source → External Direct']);
     });
 
     it('should return Forwarded label for external forwards', () => {
@@ -136,7 +136,7 @@ describe('emailRouting', () => {
         isExternalDirect: false,
       } as any;
       
-      expect(getSourceLabels(metadata)).toEqual(['Forwarded']);
+      expect(getSourceLabels(metadata)).toEqual(['Request Source → Forwarded']);
     });
 
     it('should return Email label as default', () => {
@@ -149,7 +149,7 @@ describe('emailRouting', () => {
         isExternalDirect: false,
       } as any;
       
-      expect(getSourceLabels(metadata)).toEqual(['Email']);
+      expect(getSourceLabels(metadata)).toEqual(['Request Source → Email']);
     });
   });
 
