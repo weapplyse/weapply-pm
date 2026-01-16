@@ -262,7 +262,7 @@ export async function updateLinearIssue(
 }
 
 /**
- * Get issue details including description
+ * Get issue details including description and attachments
  */
 export async function getIssue(issueId: string): Promise<{
   success: boolean;
@@ -271,6 +271,12 @@ export async function getIssue(issueId: string): Promise<{
     title: string;
     description: string;
     teamId: string;
+    attachments?: Array<{
+      id: string;
+      title: string;
+      subtitle?: string;
+      url: string;
+    }>;
   };
   error?: string;
 }> {
@@ -283,6 +289,14 @@ export async function getIssue(issueId: string): Promise<{
           description
           team {
             id
+          }
+          attachments {
+            nodes {
+              id
+              title
+              subtitle
+              url
+            }
           }
         }
       }
@@ -301,7 +315,15 @@ export async function getIssue(issueId: string): Promise<{
     });
 
     const result = await response.json() as {
-      data?: { issue?: { id: string; title: string; description: string; team?: { id: string } } };
+      data?: { 
+        issue?: { 
+          id: string; 
+          title: string; 
+          description: string; 
+          team?: { id: string };
+          attachments?: { nodes?: Array<{ id: string; title: string; subtitle?: string; url: string }> };
+        } 
+      };
       errors?: Array<{ message: string }>;
     };
 
@@ -320,6 +342,12 @@ export async function getIssue(issueId: string): Promise<{
           title: result.data.issue.title,
           description: result.data.issue.description || '',
           teamId: result.data.issue.team?.id || '',
+          attachments: result.data.issue.attachments?.nodes?.map(att => ({
+            id: att.id,
+            title: att.title,
+            subtitle: att.subtitle,
+            url: att.url,
+          })),
         },
       };
     }

@@ -353,16 +353,76 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
     }
     console.log(`  Route: ${emailMetadata.isInternalForward ? 'Internal Forward' : emailMetadata.isExternalDirect ? 'External Direct' : emailMetadata.isInternal ? 'Internal' : 'External'}`);
 
-    // Extract attachment info from email content
-    // Linear email intake includes attachments as links in the description
-    const attachmentInfo = extractAttachmentInfo(emailContent);
+    // Extract attachment info from Linear issue attachments (not from description text)
+    // Linear stores email attachments separately in the issue.attachments field
     let attachmentAnalyses: AttachmentAnalysis[] = [];
     
-    if (attachmentInfo.length > 0) {
-      attachmentAnalyses = analyzeAttachments(attachmentInfo);
-      console.log(`📎 Attachments detected: ${attachmentAnalyses.length}`);
-      for (const att of attachmentAnalyses) {
-        console.log(`  - ${att.icon} ${att.filename} (${att.size}) ${att.isActionable ? '⚡' : ''}`);
+    if (issue.attachments && issue.attachments.length > 0) {
+      console.log(`📎 Attachments found in Linear: ${issue.attachments.length}`);
+      
+      // Convert Linear attachments to EmailAttachment format
+      const emailAttachments: EmailAttachment[] = issue.attachments
+        .filter(att => {
+          // Skip the "original email" attachment (usually has subtitle like "pelle@weapply.se")
+          // We only want actual file attachments
+          if (att.subtitle && att.subtitle.includes('@')) {
+            return false;
+          }
+          
+          // Extract filename from title or URL
+          let filename = att.title;
+          if (!filename || filename === att.subtitle) {
+            // Try to extract from URL
+            const urlMatch = att.url.match(/\/([^\/]+\.(pdf|doc|docx|xls|xlsx|csv|png|jpg|jpeg|gif|zip|txt|md|json|xml|ppt|pptx))(\?|$)/i);
+            if (urlMatch) {
+              filename = urlMatch[1];
+            } else {
+              // Fallback: use title or skip
+              filename = att.title || 'unknown';
+            }
+          }
+          
+          // Validate it's a real attachment (not just a link)
+          return isValidAttachment(filename);
+        })
+        .map(att => {
+          // Extract filename from title or URL
+          let filename = att.title;
+          if (!filename || filename === att.subtitle) {
+            const urlMatch = att.url.match(/\/([^\/]+\.(pdf|doc|docx|xls|xlsx|csv|png|jpg|jpeg|gif|zip|txt|md|json|xml|ppt|pptx))(\?|$)/i);
+            if (urlMatch) {
+              filename = urlMatch[1];
+            } else {
+              filename = att.title || 'unknown';
+            }
+          }
+          
+          return {
+            filename,
+            contentType: guessContentType(filename),
+            content: Buffer.from(''), // We don't download the actual content
+            size: 0, // Size unknown without downloading
+          };
+        });
+      
+      if (emailAttachments.length > 0) {
+        attachmentAnalyses = analyzeAttachments(emailAttachments);
+        console.log(`📎 Processed ${attachmentAnalyses.length} file attachment(s):`);
+        for (const att of attachmentAnalyses) {
+          console.log(`  - ${att.icon} ${att.filename} ${att.isActionable ? '⚡' : ''}`);
+        }
+      } else {
+        console.log(`  ℹ️  No file attachments found (only email links)`);
+      }
+    } else {
+      // Fallback: try to extract from description text (for backwards compatibility)
+      const attachmentInfo = extractAttachmentInfo(emailContent);
+      if (attachmentInfo.length > 0) {
+        attachmentAnalyses = analyzeAttachments(attachmentInfo);
+        console.log(`📎 Attachments detected from description: ${attachmentAnalyses.length}`);
+        for (const att of attachmentAnalyses) {
+          console.log(`  - ${att.icon} ${att.filename} (${att.size}) ${att.isActionable ? '⚡' : ''}`);
+        }
       }
     }
 
