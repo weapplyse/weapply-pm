@@ -16,6 +16,9 @@ export const config = {
   defaultLinearTeam: process.env.DEFAULT_LINEAR_TEAM || 'WeTest',
   defaultLinearProject: process.env.DEFAULT_LINEAR_PROJECT || '',
   
+  // Slack notifications
+  slackWebhookUrl: process.env.SLACK_WEBHOOK_URL || '',
+  
   // Feature flags
   enableAIRefinement: process.env.ENABLE_AI_REFINEMENT !== 'false',
   

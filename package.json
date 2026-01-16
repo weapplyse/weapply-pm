@@ -9,8 +9,9 @@
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "type-check": "tsc --noEmit",
-    "create-ticket": "tsx src/createTicket.ts",
-    "gmail-poller": "tsx src/gmailPoller.ts"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [
     "email",
@@ -35,6 +36,7 @@
     "@types/node": "^20.10.0",
     "@vercel/node": "^3.0.0",
     "tsx": "^4.7.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
   }
 }

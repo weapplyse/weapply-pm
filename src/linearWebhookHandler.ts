@@ -8,6 +8,7 @@ import { analyzeAttachments, formatAttachmentsMarkdown, generateAttachmentSubIss
 import { EmailAttachment } from './types.js';
 import { findRelatedTickets, recordTicket, formatRelatedTicketsMarkdown, extractMessageId, RelatedTicket } from './threadTracker.js';
 import { analyzeImagesInContent, formatImageAnalysisMarkdown, ImageAnalysis } from './imageAnalyzer.js';
+import { notifySlackUrgent } from './slackNotifier.js';
 
 const router = express.Router();
 
@@ -601,6 +602,20 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
 
     if (updateResult.success) {
       console.log(`✅ Updated ${issueIdentifier} in ${duration}ms\n`);
+      
+      // Send Slack notification for urgent tickets (priority 1)
+      if (result.ticketData.priority === 1) {
+        const issueUrl = `https://linear.app/weapply/issue/${issueIdentifier}`;
+        await notifySlackUrgent({
+          issueIdentifier,
+          title: result.ticketData.title,
+          summary: result.refinedContent.summary || result.ticketData.title,
+          url: issueUrl,
+          priority: result.ticketData.priority,
+          sender: emailMetadata.senderEmail,
+          clientLabel: clientLabelName,
+        });
+      }
       
       res.json({
         success: true,
