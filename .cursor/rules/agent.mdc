@@ -1,104 +1,48 @@
 ---
-description: Agent rules for Weapply PM - AI Refinement project
+description: Agent rules for Weapply PM
 globs: ["**/*"]
 alwaysApply: true
 ---
 
-# Weapply PM Agent Rules
+# Weapply PM
 
-## Project Context
+AI-powered email → Linear ticket refinement system.
 
-This is **Weapply PM** - an AI-powered email-to-Linear ticket refinement system.
+## Quick Reference
 
-- **Linear Project**: Linear Automation (ID: 5d992f68-4c78-4294-91d9-294808bf1d49)
-- **Team**: WeTest
-- **Default Assignee**: pelle@weapply.se
-- **Repository**: weapply-pm
+| Item | Value |
+|------|-------|
+| Team | WeTest |
+| Project | Linear Automation |
+| Assignee | pelle@weapply.se |
+| Endpoint | `POST /webhook/linear-webhook` |
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `src/index.ts` | Express server entry point |
-| `src/linearWebhookHandler.ts` | Webhook processing & routing |
-| `src/linearApiClient.ts` | Linear GraphQL API client |
-| `src/contentRefiner.ts` | OpenAI prompt and refinement |
-| `src/emailRouting.ts` | Sender detection & routing logic |
-| `src/urgencyDetector.ts` | Urgency keyword analysis |
-| `src/attachmentHandler.ts` | Attachment processing |
-| `src/threadTracker.ts` | Duplicate/thread detection |
-| `src/imageAnalyzer.ts` | GPT-4 Vision image analysis |
-| `src/emailParser.ts` | Email parsing utilities |
-| `src/config.ts` | Environment configuration |
-| `src/types.ts` | TypeScript interfaces |
-| `REFINEMENT_PLAN.md` | Documentation and roadmap |
+| `src/contentRefiner.ts` | GPT-4o prompt (main AI logic) |
+| `src/linearWebhookHandler.ts` | Webhook processing |
+| `src/emailRouting.ts` | Sender detection & routing |
+| `src/urgencyDetector.ts` | Priority keyword analysis |
 
-## Linear Issue Creation
+## Development
 
-### When to Create Issues
-1. **New features** discussed → Create with "Feature" label
-2. **Bugs discovered** → Create with "Bug" label
-3. **Improvements** → Create with "Improvement" label
-4. **Tasks** → Create with "Task" label
-
-### Issue Template
+```bash
+npm run build && sudo systemctl restart weapply-pm  # Deploy
+sudo journalctl -u weapply-pm -f                    # Logs
+npm run test                                        # Tests
 ```
-Title: [Clear, actionable title]
+
+## When Creating Issues
+
+Only create Linear issues when user explicitly asks for a feature/task.
+
+```
+Team: WeTest
 Project: Linear Automation
 Labels: [Type] + [Tech area]
-Assignee: pelle@weapply.se
 ```
 
-## Documentation Requirements
-
-### CRITICAL: Keep Updated
-
-1. **Linear System Overview** (Document ID: `87ad9c07-f9fe-42fe-8ea6-60c1687548fa`)
-2. **REFINEMENT_PLAN.md** - Feature status and flow diagrams
-3. **Linear issue comments** - Implementation notes when completing
-
-## Development Guidelines
-
-### Code Style
-- TypeScript strict mode
-- ES modules (`type: "module"`)
-- Async/await for all async operations
-- Console.log with emojis for debugging
-
-### Testing
-```bash
-sudo journalctl -u weapply-pm -f          # View logs
-npm run build && sudo systemctl restart weapply-pm  # Deploy
-```
-
-### Label Groups (pick ONE from each)
-- **Type**: Bug, Feature, Task, Support, Hotfix
-- **Dept**: Development, Design, PM, Accounting, Sales
-- **Tech**: Frontend, Backend, AI/ML, Integration
-- **Source**: Email, Internal Forward, External Direct, Slack
-
-## Feature Status
-
-### ✅ Completed
-| Issue | Feature |
-|-------|---------|
-| WET-17 | Auto-assign internal senders |
-| WET-18 | Client labels (replaced projects) |
-| WET-19 | Urgency detection |
-| WET-20 | Attachment handling |
-| WET-21 | Internal forward detection |
-| WET-22 | External direct routing |
-| WET-23 | Manual refinement (Refine Queue) |
-| WET-24 | Improved AI prompt |
-| WET-31 | Duplicate detection |
-| WET-32 | Thread tracking |
-| WET-33 | AI image analysis |
-| WET-48 | Slack auto-assignment |
-
-### 📋 Backlog
-| Issue | Feature |
-|-------|---------|
-| WET-30 | Spam/marketing filtering (on hold) |
-| WET-34 | Slack notifications |
-| WET-36 | Analytics dashboard |
-| WET-39 | Slack channel intake |
+Type labels: Bug, Feature, Task, Improvement
+Tech labels: Backend, Frontend, AI/ML, Integration

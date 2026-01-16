@@ -1,53 +1,31 @@
 ---
-description: Linear MCP integration rules for tracking project work
+description: Linear MCP integration
 globs: ["**/*"]
 alwaysApply: true
 ---
 
-# Linear Integration Rules
+# Linear Integration
 
 ## Issue Creation
 
-When user discusses actionable items, create Linear issues:
+Only create issues when explicitly requested.
 
 ```json
 {
   "team": "WeTest",
   "project": "Linear Automation",
   "assignee": "pelle@weapply.se",
-  "labels": ["Development", "<type>", "<tech>"]
+  "labels": ["Development", "<type>"]
 }
 ```
 
-### Type Labels (pick ONE)
+## Type Labels
 - `Bug` - Something broken
 - `Feature` - New functionality  
-- `Improvement` - Enhancement
 - `Task` - General work
+- `Improvement` - Enhancement
 
-### Tech Labels (if relevant)
-- `Backend` - Server/API
-- `Frontend` - UI
-- `AI/ML` - AI-related
-- `Integration` - Third-party
+## After Work Complete
 
-## After Completing Work
-
-1. Update issue status to "Done"
-2. Add implementation comment
-3. Update documentation:
-   - **Linear System Overview** (ID: `87ad9c07-f9fe-42fe-8ea6-60c1687548fa`)
-   - **REFINEMENT_PLAN.md**
-
-## Example
-
-```typescript
-mcp_linear_create_issue({
-  title: "Fix attachment detection for emails",
-  team: "WeTest",
-  project: "Linear Automation",
-  assignee: "pelle@weapply.se",
-  labels: ["Bug", "Development", "Backend"],
-  description: "## Overview\n..."
-})
-```
+1. Mark issue as "Done" if applicable
+2. Commit changes with descriptive message
