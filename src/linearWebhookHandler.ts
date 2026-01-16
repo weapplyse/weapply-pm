@@ -1,11 +1,13 @@
 import express, { Request, Response } from 'express';
 import crypto from 'crypto';
 import { processEmail } from './emailHandler.js';
-import { updateLinearIssue, getIssue, getUserIdByEmail, addIssueToProject, getTeamId, createSubIssue, removeFromProject, getOrCreateClientLabel, checkClientLabelExists } from './linearApiClient.js';
+import { updateLinearIssue, getIssue, getUserIdByEmail, addIssueToProject, getTeamId, createSubIssue, removeFromProject, getOrCreateClientLabel, checkClientLabelExists, linkRelatedIssues } from './linearApiClient.js';
 import { config } from './config.js';
 import { extractEmailMetadata, getSourceLabels, getClientLabelName, shouldCreateClientLabel, getTargetProjectId, EmailMetadata, PROJECT_IDS } from './emailRouting.js';
 import { analyzeAttachments, formatAttachmentsMarkdown, generateAttachmentSubIssues, AttachmentAnalysis } from './attachmentHandler.js';
 import { EmailAttachment } from './types.js';
+import { findRelatedTickets, recordTicket, formatRelatedTicketsMarkdown, extractMessageId, RelatedTicket } from './threadTracker.js';
+import { analyzeImagesInContent, formatImageAnalysisMarkdown, ImageAnalysis } from './imageAnalyzer.js';
 
 const router = express.Router();
 
@@ -348,6 +350,36 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
       finalDescription += formatAttachmentsMarkdown(attachmentAnalyses);
     }
 
+    // AI Image Analysis (WET-33) - analyze screenshots/mockups
+    let imageAnalyses: ImageAnalysis[] = [];
+    if (config.openaiApiKey) {
+      imageAnalyses = await analyzeImagesInContent(emailContent, 3);
+      if (imageAnalyses.length > 0) {
+        finalDescription += formatImageAnalysisMarkdown(imageAnalyses);
+        console.log(`🖼️  Analyzed ${imageAnalyses.length} image(s)`);
+      }
+    }
+
+    // Thread tracking: Find related tickets (WET-31, WET-32)
+    let relatedTickets: RelatedTicket[] = [];
+    if (emailMetadata.senderEmail && !isFromSlack) {
+      relatedTickets = findRelatedTickets(
+        emailMetadata.senderEmail,
+        issue.title,
+        emailContent
+      );
+      
+      if (relatedTickets.length > 0) {
+        console.log(`🔗 Found ${relatedTickets.length} related ticket(s):`);
+        for (const r of relatedTickets) {
+          console.log(`   - ${r.issueIdentifier} (${r.confidence}): ${r.reason}`);
+        }
+        
+        // Add related tickets section to description
+        finalDescription += formatRelatedTicketsMarkdown(relatedTickets);
+      }
+    }
+
     console.log(`✓ Refined: "${result.ticketData.title}"`);
     console.log(`  Summary: ${(result.refinedContent.summary || '').substring(0, 100)}...`);
     console.log(`  Action items: ${(result.refinedContent.actionItems || []).length}`);
@@ -355,6 +387,9 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
     console.log(`  Priority: ${result.ticketData.priority}`);
     if (attachmentAnalyses.length > 0) {
       console.log(`  Attachments: ${attachmentAnalyses.length}`);
+    }
+    if (relatedTickets.length > 0) {
+      console.log(`  Related: ${relatedTickets.length} ticket(s)`);
     }
 
     // Determine assignee based on source
@@ -418,6 +453,31 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
           }
         }
       }
+    }
+
+    // Link related issues and record for future tracking (WET-31, WET-32)
+    if (updateResult.success && relatedTickets.length > 0) {
+      console.log('🔗 Linking related issues...');
+      for (const related of relatedTickets.filter(r => r.confidence === 'high')) {
+        try {
+          await linkRelatedIssues(issueId, related.issueId);
+          console.log(`  ✓ Linked to ${related.issueIdentifier}`);
+        } catch (err) {
+          console.error(`  ✗ Failed to link: ${err}`);
+        }
+      }
+    }
+
+    // Record this ticket for future thread matching
+    if (updateResult.success && emailMetadata.senderEmail) {
+      const messageId = extractMessageId(emailContent);
+      recordTicket(
+        issueId,
+        issueIdentifier,
+        emailMetadata.senderEmail,
+        issue.title,
+        messageId
+      );
     }
 
     // For manual refinement: create sub-issue with original content and remove from Refine Queue

@@ -881,3 +881,105 @@ export async function checkClientLabelExists(labelName: string): Promise<boolean
     return false;
   }
 }
+
+/**
+ * Link two issues as related
+ */
+export async function linkRelatedIssues(
+  issueId: string,
+  relatedIssueId: string
+): Promise<boolean> {
+  const mutation = `
+    mutation CreateIssueRelation($input: IssueRelationCreateInput!) {
+      issueRelationCreate(input: $input) {
+        success
+        issueRelation {
+          id
+        }
+      }
+    }
+  `;
+
+  try {
+    const response = await fetch(LINEAR_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: LINEAR_API_KEY,
+      },
+      body: JSON.stringify({
+        query: mutation,
+        variables: {
+          input: {
+            issueId,
+            relatedIssueId,
+            type: 'related',
+          },
+        },
+      }),
+    });
+
+    const result = await response.json() as {
+      data?: { issueRelationCreate?: { success: boolean } };
+      errors?: Array<{ message: string }>;
+    };
+
+    if (result.errors) {
+      // Ignore "already exists" errors
+      if (result.errors.some(e => e.message.includes('already exists'))) {
+        return true;
+      }
+      console.error('Error linking issues:', result.errors);
+      return false;
+    }
+
+    return result.data?.issueRelationCreate?.success || false;
+  } catch (error) {
+    console.error('Error linking related issues:', error);
+    return false;
+  }
+}
+
+/**
+ * Add a comment to an issue
+ */
+export async function addIssueComment(
+  issueId: string,
+  body: string
+): Promise<boolean> {
+  const mutation = `
+    mutation CreateComment($input: CommentCreateInput!) {
+      commentCreate(input: $input) {
+        success
+      }
+    }
+  `;
+
+  try {
+    const response = await fetch(LINEAR_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: LINEAR_API_KEY,
+      },
+      body: JSON.stringify({
+        query: mutation,
+        variables: {
+          input: {
+            issueId,
+            body,
+          },
+        },
+      }),
+    });
+
+    const result = await response.json() as {
+      data?: { commentCreate?: { success: boolean } };
+    };
+
+    return result.data?.commentCreate?.success || false;
+  } catch (error) {
+    console.error('Error adding comment:', error);
+    return false;
+  }
+}
