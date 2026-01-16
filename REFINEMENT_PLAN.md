@@ -122,18 +122,26 @@
 | [WET-40](https://linear.app/weapply/issue/WET-40) | Cleanup old client projects | ✅ Done |
 | [WET-41](https://linear.app/weapply/issue/WET-41) | Update System Overview document | ✅ Done |
 
+### ✅ Phase 5 - Intelligence & Stability (Complete)
+
+| Issue | Feature | Status |
+|-------|---------|--------|
+| [WET-31](https://linear.app/weapply/issue/WET-31) | Duplicate detection | ✅ Done |
+| [WET-32](https://linear.app/weapply/issue/WET-32) | Thread tracking | ✅ Done |
+| [WET-33](https://linear.app/weapply/issue/WET-33) | AI image analysis | ✅ Done |
+| [WET-34](https://linear.app/weapply/issue/WET-34) | Slack notifications for urgent | ✅ Done |
+| [WET-48](https://linear.app/weapply/issue/WET-48) | Slack auto-assignment | ✅ Done |
+| [WET-59](https://linear.app/weapply/issue/WET-59) | Test suite (Vitest) | ✅ Done |
+| [WET-60](https://linear.app/weapply/issue/WET-60) | Duplicate processing fix | ✅ Done |
+| [WET-61](https://linear.app/weapply/issue/WET-61) | Attachment detection fix | ✅ Done |
+
 ### 🔮 Future Enhancements (Backlog)
 
 | Issue | Feature | Description |
 |-------|---------|-------------|
-| [WET-30](https://linear.app/weapply/issue/WET-30) | Spam detection | Filter obvious spam/marketing emails |
-| [WET-31](https://linear.app/weapply/issue/WET-31) | Duplicate detection | Link related tickets from same sender |
-| [WET-32](https://linear.app/weapply/issue/WET-32) | Thread tracking | Group email conversations together |
-| [WET-33](https://linear.app/weapply/issue/WET-33) | AI image analysis | Use GPT-4V for screenshot analysis |
-| [WET-34](https://linear.app/weapply/issue/WET-34) | Slack notifications | Notify on urgent tickets |
-| [WET-35](https://linear.app/weapply/issue/WET-35) | Email auto-reply | Send ticket confirmation |
-| [WET-36](https://linear.app/weapply/issue/WET-36) | Analytics dashboard | Ticket metrics and reporting |
-| [WET-39](https://linear.app/weapply/issue/WET-39) | Slack channel intake | Create tickets from Slack messages |
+| [WET-30](https://linear.app/weapply/issue/WET-30) | Spam detection | On hold |
+| [WET-36](https://linear.app/weapply/issue/WET-36) | Analytics dashboard | Paused |
+| [WET-39](https://linear.app/weapply/issue/WET-39) | Slack channel intake | Paused |
 
 ---
 
