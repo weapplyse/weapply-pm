@@ -6,85 +6,48 @@ alwaysApply: true
 
 # Linear Integration Rules
 
-## Automatic Issue Creation
+## Issue Creation
 
-When the user discusses:
-- A new feature idea → Create Linear issue with "Feature" label
-- A bug or problem → Create Linear issue with "Bug" label
-- An improvement → Create Linear issue with "Improvement" label
-- A task to do → Create Linear issue with "Task" label
+When user discusses actionable items, create Linear issues:
 
-## Issue Creation Parameters
-
-Always use these settings:
 ```json
 {
   "team": "WeTest",
-  "project": "WeApply - AI Refinement",
+  "project": "Linear Automation",
   "assignee": "pelle@weapply.se",
-  "labels": ["Development", "<type_label>", "<tech_label>"]
+  "labels": ["Development", "<type>", "<tech>"]
 }
 ```
 
-## Label Selection Guide
-
 ### Type Labels (pick ONE)
 - `Bug` - Something broken
-- `Feature` - New functionality
+- `Feature` - New functionality  
 - `Improvement` - Enhancement
 - `Task` - General work
 
-### Tech Labels (pick if relevant)
-- `Backend` - Server/API work
-- `Frontend` - UI work
+### Tech Labels (if relevant)
+- `Backend` - Server/API
+- `Frontend` - UI
 - `AI/ML` - AI-related
 - `Integration` - Third-party
 
-## Status Updates
+## After Completing Work
 
-When work is completed on an issue:
-1. Update issue status to "Done" or appropriate state
-2. Add comment with implementation summary
-3. Reference commit/PR if applicable
-4. **Update project documentation** (see Documentation section)
+1. Update issue status to "Done"
+2. Add implementation comment
+3. Update documentation:
+   - **Linear System Overview** (ID: `87ad9c07-f9fe-42fe-8ea6-60c1687548fa`)
+   - **REFINEMENT_PLAN.md**
 
-## Documentation Maintenance
-
-### ALWAYS Update After Changes
-
-**Linear Project Document** (System Overview):
-- Document ID: `87ad9c07-f9fe-42fe-8ea6-60c1687548fa`
-- URL: https://linear.app/weapply/document/system-overview-3181a0fdda51
-- Contains: System flow, features, labels, configuration
-- **Must be kept current with implemented features**
-
-Use `mcp_linear_update_document` to update when:
-- New features are implemented
-- Configuration changes
-- Labels or priority rules change
-- System flow is modified
-
-**Local Documentation**:
-- Update `REFINEMENT_PLAN.md` with feature status
-- Update README.md if setup changes
-
-## Conversation Tracking
-
-If a conversation leads to actionable items:
-1. Summarize into discrete issues
-2. Create each as separate Linear issue
-3. Link related issues using `relatedTo` parameter
-
-## Example Usage
+## Example
 
 ```typescript
-// When user says "Let's add dark mode support"
 mcp_linear_create_issue({
-  title: "Add dark mode support to admin panel",
+  title: "Fix attachment detection for emails",
   team: "WeTest",
-  project: "WeApply - AI Refinement",
+  project: "Linear Automation",
   assignee: "pelle@weapply.se",
-  labels: ["Feature", "Development", "Frontend"],
-  description: "## Overview\nAdd dark mode toggle...\n\n## Requirements\n- ..."
+  labels: ["Bug", "Development", "Backend"],
+  description: "## Overview\n..."
 })
 ```

@@ -6,111 +6,99 @@ alwaysApply: true
 
 # Weapply PM Agent Rules
 
-## Project Management Integration
+## Project Context
 
-### Linear Tracking
-- **Project**: WeApply - AI Refinement (ID: 5d992f68-4c78-4294-91d9-294808bf1d49)
+This is **Weapply PM** - an AI-powered email-to-Linear ticket refinement system.
+
+- **Linear Project**: Linear Automation (ID: 5d992f68-4c78-4294-91d9-294808bf1d49)
 - **Team**: WeTest
 - **Default Assignee**: pelle@weapply.se
+- **Repository**: weapply-pm
 
-### When to Create Linear Issues
-1. **New features** discussed → Create Feature issue
-2. **Bugs discovered** → Create Bug issue
-3. **Improvements suggested** → Create Improvement issue
-4. **Tasks identified** → Create Task issue
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `src/index.ts` | Express server entry point |
+| `src/linearWebhookHandler.ts` | Webhook processing & routing |
+| `src/linearApiClient.ts` | Linear GraphQL API client |
+| `src/contentRefiner.ts` | OpenAI prompt and refinement |
+| `src/emailRouting.ts` | Sender detection & routing logic |
+| `src/urgencyDetector.ts` | Urgency keyword analysis |
+| `src/attachmentHandler.ts` | Attachment processing |
+| `src/threadTracker.ts` | Duplicate/thread detection |
+| `src/imageAnalyzer.ts` | GPT-4 Vision image analysis |
+| `src/emailParser.ts` | Email parsing utilities |
+| `src/config.ts` | Environment configuration |
+| `src/types.ts` | TypeScript interfaces |
+| `REFINEMENT_PLAN.md` | Documentation and roadmap |
+
+## Linear Issue Creation
+
+### When to Create Issues
+1. **New features** discussed → Create with "Feature" label
+2. **Bugs discovered** → Create with "Bug" label
+3. **Improvements** → Create with "Improvement" label
+4. **Tasks** → Create with "Task" label
 
 ### Issue Template
 ```
 Title: [Clear, actionable title]
-Project: WeApply - AI Refinement
-Labels: [Type] + [Tech area if applicable]
+Project: Linear Automation
+Labels: [Type] + [Tech area]
 Assignee: pelle@weapply.se
-Description:
-## Overview
-[Brief description]
-
-## Requirements
-- Requirement 1
-- Requirement 2
-
-## Implementation
-- Implementation step 1
-- Implementation step 2
 ```
 
 ## Documentation Requirements
 
-### CRITICAL: Keep Documentation Updated
+### CRITICAL: Keep Updated
 
-After implementing any feature or making significant changes:
+1. **Linear System Overview** (Document ID: `87ad9c07-f9fe-42fe-8ea6-60c1687548fa`)
+2. **REFINEMENT_PLAN.md** - Feature status and flow diagrams
+3. **Linear issue comments** - Implementation notes when completing
 
-1. **Update Linear Project Document**
-   - Document ID: `87ad9c07-f9fe-42fe-8ea6-60c1687548fa`
-   - Title: "System Overview"
-   - URL: https://linear.app/weapply/document/system-overview-3181a0fdda51
-   - Must reflect current system state, features, and configuration
+## Development Guidelines
 
-2. **Update REFINEMENT_PLAN.md**
-   - Keep feature status current (✅ Done / 🔄 In Progress / 📋 Planned)
-   - Update flow diagrams if logic changes
-   - Document new configuration options
+### Code Style
+- TypeScript strict mode
+- ES modules (`type: "module"`)
+- Async/await for all async operations
+- Console.log with emojis for debugging
 
-3. **Add Implementation Comments to Linear Issues**
-   - When completing an issue, add a comment with:
-     - What was implemented
-     - Key files changed
-     - Any configuration required
+### Testing
+```bash
+sudo journalctl -u weapply-pm -f          # View logs
+npm run build && sudo systemctl restart weapply-pm  # Deploy
+```
 
-### Documentation Checklist
-- [ ] Linear "System Overview" document updated
-- [ ] REFINEMENT_PLAN.md reflects changes
-- [ ] Linear issue has implementation comment
-- [ ] Any new env vars documented
-
-## Development Workflow
-
-### Before Making Changes
-1. Check if related Linear issue exists
-2. If not, create one with proper labels
-3. Reference issue ID in commit messages
-
-### After Making Changes
-1. Update Linear issue status to Done
-2. Add implementation notes as comments
-3. **Update documentation (see above)**
-4. Commit with descriptive message
-
-### Code Changes
-- Always use TypeScript
-- Follow existing code patterns
-- Add console.log with emojis for debugging
-- Test locally before deploying
-
-## Key Contacts
-- **Project Owner**: Pelle Nyman (pelle@weapply.se)
-- **Linear Team**: WeTest
+### Label Groups (pick ONE from each)
+- **Type**: Bug, Feature, Task, Support, Hotfix
+- **Dept**: Development, Design, PM, Accounting, Sales
+- **Tech**: Frontend, Backend, AI/ML, Integration
+- **Source**: Email, Internal Forward, External Direct, Slack
 
 ## Feature Status
 
-### ✅ Completed (Phase 1-3)
+### ✅ Completed
 | Issue | Feature |
 |-------|---------|
 | WET-17 | Auto-assign internal senders |
-| WET-18 | Client project creation |
+| WET-18 | Client labels (replaced projects) |
 | WET-19 | Urgency detection |
 | WET-20 | Attachment handling |
 | WET-21 | Internal forward detection |
 | WET-22 | External direct routing |
 | WET-23 | Manual refinement (Refine Queue) |
 | WET-24 | Improved AI prompt |
-
-### 📋 Backlog (Future)
-| Issue | Feature |
-|-------|---------|
-| WET-30 | Spam/marketing filtering |
 | WET-31 | Duplicate detection |
 | WET-32 | Thread tracking |
 | WET-33 | AI image analysis |
+| WET-48 | Slack auto-assignment |
+
+### 📋 Backlog
+| Issue | Feature |
+|-------|---------|
+| WET-30 | Spam/marketing filtering (on hold) |
 | WET-34 | Slack notifications |
-| WET-35 | Email auto-reply |
 | WET-36 | Analytics dashboard |
+| WET-39 | Slack channel intake |
