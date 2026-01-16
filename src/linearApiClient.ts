@@ -646,7 +646,8 @@ export async function createSubIssue(
   parentIssueId: string,
   title: string,
   description: string,
-  labels: string[] = []
+  labels: string[] = [],
+  state: string = 'Backlog'  // Default to Backlog instead of Triage
 ): Promise<{ success: boolean; issueId?: string; error?: string }> {
   try {
     const mutation = `
@@ -663,12 +664,20 @@ export async function createSubIssue(
       }
     `;
 
+    // Get state ID for the specified state
+    const stateId = await getStateId(state, teamId);
+
     const input: any = {
       title,
       description,
       teamId,
       parentId: parentIssueId,
     };
+
+    // Set state to Backlog by default
+    if (stateId) {
+      input.stateId = stateId;
+    }
 
     // Add labels if provided
     if (labels.length > 0) {

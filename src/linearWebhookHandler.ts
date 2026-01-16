@@ -12,6 +12,39 @@ import { analyzeImagesInContent, formatImageAnalysisMarkdown, ImageAnalysis } fr
 const router = express.Router();
 
 /**
+ * Processing cache to prevent duplicate processing of the same issue
+ * Maps issueId -> timestamp when processing started
+ */
+const processingCache = new Map<string, number>();
+const PROCESSING_COOLDOWN_MS = 30000; // 30 seconds cooldown
+
+/**
+ * Check if an issue is currently being processed or was recently processed
+ */
+function isRecentlyProcessed(issueId: string): boolean {
+  const lastProcessed = processingCache.get(issueId);
+  if (!lastProcessed) return false;
+  
+  const elapsed = Date.now() - lastProcessed;
+  return elapsed < PROCESSING_COOLDOWN_MS;
+}
+
+/**
+ * Mark an issue as being processed
+ */
+function markAsProcessing(issueId: string): void {
+  processingCache.set(issueId, Date.now());
+  
+  // Clean up old entries (older than 5 minutes)
+  const fiveMinutesAgo = Date.now() - 300000;
+  for (const [id, timestamp] of processingCache.entries()) {
+    if (timestamp < fiveMinutesAgo) {
+      processingCache.delete(id);
+    }
+  }
+}
+
+/**
  * Valid file extensions that we consider as attachments
  */
 const VALID_ATTACHMENT_EXTENSIONS = [
@@ -240,6 +273,18 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'No issue ID in webhook payload' });
     }
 
+    // Check if this issue was recently processed (prevent duplicate processing)
+    if (isRecentlyProcessed(issueId)) {
+      console.log(`⏳ Issue ${issueIdentifier} was recently processed, skipping (cooldown)`);
+      return res.status(200).json({ 
+        message: 'Skipped - issue recently processed (cooldown)',
+        issueIdentifier 
+      });
+    }
+
+    // Mark as processing immediately
+    markAsProcessing(issueId);
+
     // Check if issue is from Slack Intake project (created via Slack integration)
     const isFromSlack = currentProjectId === PROJECT_IDS.SLACK_INTAKE;
 
@@ -259,8 +304,12 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
     const issue = issueResult.issue;
     const emailContent = issue.description || issue.title;
 
-    // Skip if already refined (check for our marker in description) - unless manual refinement
-    if (!isManualRefinement && issue.description?.includes('## Summary') && issue.description?.includes('**Original Email**')) {
+    // Skip if already refined (check for our marker in description)
+    // For manual refinement: check if "## Summary" AND "## Action Items" are both present (refined format)
+    const hasRefinedMarkers = issue.description?.includes('## Summary') && 
+                              (issue.description?.includes('## Action Items') || issue.description?.includes('**Original Email**'));
+    
+    if (hasRefinedMarkers) {
       console.log('ℹ️  Issue already refined, skipping');
       return res.status(200).json({ 
         message: 'Skipped - issue already refined',
