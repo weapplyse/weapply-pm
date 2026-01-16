@@ -388,10 +388,10 @@ export function generateAttachmentSubIssues(analyses: AttachmentAnalysis[]): Sub
           att.filename.toLowerCase().includes('invoice')) {
         labels.push('Accounting');
       } else {
-        labels.push('Project Mgmt');
+        labels.push('PM');
       }
     } else if (att.category === 'spreadsheet') {
-      labels.push('Project Mgmt');
+      labels.push('PM');
     }
     
     return {

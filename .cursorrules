@@ -49,7 +49,7 @@ This is the **Weapply PM** project - an AI-powered email-to-Linear ticket refine
 ### Label Structure
 Labels are organized in groups - pick ONE from each relevant group:
 - **Type**: Bug, Feature, Task, Support, Hotfix, etc.
-- **Dept**: Development, Design, Project Mgmt, Accounting, Sales
+- **Dept**: Development, Design, PM, Accounting, Sales
 - **Client**: New Lead, Active Client, Prospect, Internal
 - **Tech**: Frontend, Backend, Mobile, Database, Infrastructure
 - **Phase**: Discovery, Planning, In Development, Testing, Deployment

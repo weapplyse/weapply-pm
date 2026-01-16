@@ -27,7 +27,7 @@ const AVAILABLE_LABELS = {
   dept: [
     'Development',   // Dev team
     'Design',        // Design/UX team
-    'Project Mgmt',  // Project management
+    'PM',  // Project management
     'Accounting',    // Finance/accounting
     'Sales',         // Sales/BD
     'Operations',    // Ops/DevOps

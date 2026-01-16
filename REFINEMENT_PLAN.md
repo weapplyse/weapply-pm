@@ -143,7 +143,7 @@
 `Bug` | `Feature` | `Improvement` | `Task` | `Support` | `Meeting` | `Documentation` | `Maintenance` | `Hotfix` | `Refactor`
 
 ### 🏢 DEPARTMENT
-`Development` | `Design` | `Project Mgmt` | `Accounting` | `Sales` | `Operations`
+`Development` | `Design` | `PM` | `Accounting` | `Sales` | `Operations`
 
 ### 👤 CLIENT
 Auto-created: `Client: domain.com` for each unique sender domain
