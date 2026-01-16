@@ -227,22 +227,25 @@ Respond in JSON format:
   };
 
   try {
-    let imageInputUrl = imageUrl;
     if (isLinearUploadUrl(imageUrl)) {
       const inlineUrl = await fetchImageAsDataUrl(imageUrl, filename);
-      if (inlineUrl) {
-        imageInputUrl = inlineUrl;
+      if (!inlineUrl) {
+        console.log(`⚠️  Skipping image analysis (unavailable): ${filename}`);
+        return null;
       }
+      return await runAnalysis(inlineUrl);
     }
 
     try {
-      return await runAnalysis(imageInputUrl);
+      return await runAnalysis(imageUrl);
     } catch (error) {
-      if (imageInputUrl === imageUrl && isInvalidImageUrlError(error)) {
+      if (isInvalidImageUrlError(error)) {
         const inlineUrl = await fetchImageAsDataUrl(imageUrl, filename);
         if (inlineUrl) {
           return await runAnalysis(inlineUrl);
         }
+        console.log(`⚠️  Skipping image analysis (invalid URL): ${filename}`);
+        return null;
       }
       throw error;
     }

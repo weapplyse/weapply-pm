@@ -85,13 +85,29 @@ export function extractEmailMetadata(content: string, title: string): EmailMetad
   // Extract sender info
   let senderEmail = '';
   let senderName = '';
+
+  const cleanedEmails = allEmails
+    .map((email) => email.replace(/[)\]>]+$/, '').trim().toLowerCase())
+    .filter(Boolean);
+  const internalEmails = cleanedEmails.filter(
+    (email) => email.endsWith(`@${INTERNAL_DOMAIN}`) && email !== 'pm@weapply.se'
+  );
+  const nonPmEmails = cleanedEmails.filter((email) => email !== 'pm@weapply.se');
   
   if (fromMatch) {
     senderName = fromMatch[1]?.trim() || '';
     senderEmail = fromMatch[2]?.trim().toLowerCase() || '';
-  } else if (allEmails.length > 0 && allEmails[0]) {
-    // Fallback: first email found
-    senderEmail = allEmails[0].toLowerCase();
+  }
+  
+  if (!senderEmail) {
+    // Fallback: prefer internal sender, then any non-pm email
+    if (internalEmails.length > 0) {
+      senderEmail = internalEmails[0];
+    } else if (nonPmEmails.length > 0) {
+      senderEmail = nonPmEmails[0];
+    } else if (cleanedEmails.length > 0) {
+      senderEmail = cleanedEmails[0];
+    }
   }
   
   const senderDomain = extractDomain(senderEmail);

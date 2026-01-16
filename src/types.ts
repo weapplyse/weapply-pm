@@ -19,6 +19,7 @@ export interface EmailAttachment {
   contentType: string;
   content: Buffer;
   size: number;
+  url?: string;
 }
 
 export interface UrgencyAnalysis {

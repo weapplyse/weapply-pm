@@ -15,6 +15,7 @@ export interface AttachmentAnalysis {
   size: string;
   isActionable: boolean;
   suggestedAction?: string;
+  url?: string;
 }
 
 export type AttachmentCategory = 
@@ -329,6 +330,7 @@ export function analyzeAttachment(attachment: EmailAttachment): AttachmentAnalys
     size: formatSize(attachment.size),
     isActionable: actionable,
     suggestedAction: action,
+    url: attachment.url,
   };
 }
 
@@ -344,18 +346,48 @@ export function analyzeAttachments(attachments: EmailAttachment[]): AttachmentAn
  */
 export function formatAttachmentsMarkdown(analyses: AttachmentAnalysis[]): string {
   if (analyses.length === 0) return '';
-  
-  let markdown = '\n\n## 📎 Attachments\n\n';
-  
+
+  let markdown = '\n\n## Files\n\n';
+
   for (const att of analyses) {
-    markdown += `- ${att.icon} **${att.filename}** (${att.size})\n`;
-    markdown += `  - ${att.description}\n`;
+    const sizeLabel = att.size === '0 B' ? '' : ` · ${att.size}`;
+    const name = att.url ? `[${att.filename}](${att.url})` : att.filename;
+    const description = att.description ? ` — ${att.description}` : '';
+    markdown += `- ${att.icon} ${name}${sizeLabel}${description}\n`;
     if (att.suggestedAction) {
-      markdown += `  - ⚡ *${att.suggestedAction}*\n`;
+      markdown += `  - ⚡ ${att.suggestedAction}\n`;
     }
   }
-  
+
   return markdown;
+}
+
+/**
+ * Format attachments as a compact summary line
+ */
+export function formatAttachmentsSummaryLine(analyses: AttachmentAnalysis[]): string {
+  if (analyses.length === 0) return '';
+
+  const links = analyses.map((att) => {
+    return att.url ? `[${att.filename}](${att.url})` : att.filename;
+  });
+
+  return `**Files:** ${links.join(', ')}`;
+}
+
+/**
+ * Render previews for image attachments
+ */
+export function formatAttachmentPreviewsMarkdown(analyses: AttachmentAnalysis[]): string {
+  const previews = analyses.filter(att => att.url && att.category === 'image');
+  if (previews.length === 0) return '';
+
+  let markdown = '\n\n## File Previews\n\n';
+  for (const att of previews) {
+    markdown += `![${att.filename}](${att.url})\n\n`;
+  }
+
+  return markdown.trimEnd();
 }
 
 /**
@@ -394,9 +426,21 @@ export function generateAttachmentSubIssues(analyses: AttachmentAnalysis[]): Sub
       labels.push('PM');
     }
     
+    const attachmentLabel = att.url ? `[${att.filename}](${att.url})` : att.filename;
+    const sizeLine = att.size === '0 B' ? '' : `**Size**: ${att.size}`;
+    const linkLine = att.url ? `**Link**: ${att.url}` : '';
+    const descriptionLines = [
+      `**Attachment**: ${attachmentLabel}`,
+      `**Type**: ${att.description}`,
+      sizeLine,
+      linkLine,
+      '',
+      'This attachment was included in the parent ticket and may require action.',
+    ].filter(Boolean);
+
     return {
       title: `${att.suggestedAction || 'Review attachment'}: ${att.filename}`,
-      description: `**Attachment**: ${att.filename}\n**Type**: ${att.description}\n**Size**: ${att.size}\n\nThis attachment was included in the parent ticket and may require action.`,
+      description: descriptionLines.join('\n'),
       labels,
     };
   });

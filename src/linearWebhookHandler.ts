@@ -4,7 +4,7 @@ import { processEmailData } from './emailHandler.js';
 import { updateLinearIssue, getIssue, getUserIdByEmail, addIssueToProject, getTeamId, createSubIssue, removeFromProject, getOrCreateClientLabel, checkClientLabelExists, linkRelatedIssues, hasSubIssueWithPrefix } from './linearApiClient.js';
 import { config } from './config.js';
 import { extractEmailMetadata, getSourceLabels, getClientLabelName, shouldCreateClientLabel, getTargetProjectId, EmailMetadata, PROJECT_IDS } from './emailRouting.js';
-import { analyzeAttachments, formatAttachmentsMarkdown, generateAttachmentSubIssues, AttachmentAnalysis } from './attachmentHandler.js';
+import { analyzeAttachments, formatAttachmentsMarkdown, formatAttachmentsSummaryLine, formatAttachmentPreviewsMarkdown, generateAttachmentSubIssues, AttachmentAnalysis } from './attachmentHandler.js';
 import { EmailAttachment, EmailData } from './types.js';
 import { findRelatedTickets, recordTicket, formatRelatedTicketsMarkdown, extractMessageId, RelatedTicket } from './threadTracker.js';
 import { analyzeImagesInContent, formatImageAnalysisMarkdown, ImageAnalysis } from './imageAnalyzer.js';
@@ -199,6 +199,7 @@ function extractEmailAttachments(
         contentType: guessContentType(filename),
         content: Buffer.from(''), // We don't download the actual content
         size: 0, // Size unknown without downloading
+        url: att.url,
       });
     }
   }
@@ -221,6 +222,47 @@ function extractEmailAttachments(
   return emailAttachments;
 }
 
+function insertAttachmentsIntoDescription(
+  description: string,
+  attachmentAnalyses: AttachmentAnalysis[]
+): string {
+  if (attachmentAnalyses.length === 0) return description;
+
+  const summaryLine = formatAttachmentsSummaryLine(attachmentAnalyses);
+  const filesSection = formatAttachmentsMarkdown(attachmentAnalyses);
+  const previewSection = formatAttachmentPreviewsMarkdown(attachmentAnalyses);
+
+  const lines = description.split('\n');
+  const summaryIndex = lines.findIndex((line) => line.trim().toLowerCase() === '## summary');
+  const hasSummaryLine = description.includes('**Files:**') || description.includes('**Attachments:**');
+  const hasFilesSection = /##\s*Files/i.test(description) || /##\s*Attachments/i.test(description);
+  const hasPreviewSection = /##\s*File Previews/i.test(description);
+
+  if (!hasSummaryLine && summaryLine && summaryIndex !== -1) {
+    let insertAt = summaryIndex + 1;
+    while (insertAt < lines.length && lines[insertAt].trim() === '') {
+      insertAt += 1;
+    }
+
+    if (insertAt < lines.length) {
+      insertAt += 1;
+    }
+
+    lines.splice(insertAt, 0, summaryLine, '');
+  }
+
+  let updated = lines.join('\n');
+  if (!hasFilesSection && filesSection) {
+    updated += filesSection;
+  }
+
+  if (!hasPreviewSection && previewSection) {
+    updated += previewSection;
+  }
+
+  return updated;
+}
+
 /**
  * Extract attachment information from Linear email description
  * Linear includes attachments as links like: [filename.pdf](url) or mentions them in text
@@ -230,17 +272,19 @@ function extractAttachmentInfo(content: string): EmailAttachment[] {
   
   // Pattern 1: Markdown links that look like attachments
   // [filename.ext](url) or [📎 filename.ext](url)
-  const linkPattern = /\[(?:📎\s*)?([^\]]+\.[a-zA-Z0-9]+)\]\([^)]+\)/g;
+  const linkPattern = /\[(?:📎\s*)?([^\]]+\.[a-zA-Z0-9]+)\]\(([^)]+)\)/g;
   let match;
   
   while ((match = linkPattern.exec(content)) !== null) {
     const filename = match[1].trim();
+    const url = match[2]?.trim();
     if (isValidAttachment(filename) && !attachments.some(a => a.filename === filename)) {
       attachments.push({
         filename,
         contentType: guessContentType(filename),
         content: Buffer.from(''), // Placeholder - we don't have actual content
         size: 0, // Unknown size from Linear
+        url,
       });
     }
   }
@@ -256,6 +300,7 @@ function extractAttachmentInfo(content: string): EmailAttachment[] {
         contentType: guessContentType(filename),
         content: Buffer.from(''),
         size: 0,
+        url: undefined,
       });
     }
   }
@@ -271,6 +316,7 @@ function extractAttachmentInfo(content: string): EmailAttachment[] {
         contentType: guessContentType(filename),
         content: Buffer.from(''),
         size: 0,
+        url: undefined,
       });
     }
   }
@@ -575,10 +621,10 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
     // Remove duplicates
     const uniqueLabels = [...new Set(allLabels)];
 
-    // Add attachment section to description if attachments exist
+    // Add attachment references into description if attachments exist
     let finalDescription = result.ticketData.description;
     if (attachmentAnalyses.length > 0) {
-      finalDescription += formatAttachmentsMarkdown(attachmentAnalyses);
+      finalDescription = insertAttachmentsIntoDescription(finalDescription, attachmentAnalyses);
     }
 
     // AI Image Analysis (WET-33) - analyze screenshots/mockups
@@ -631,11 +677,17 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
       // For Slack issues, assign to the creator
       assigneeId = creatorId;
       console.log(`  👤 Auto-assigning to creator (Slack): ${creatorId}`);
+    } else if (creatorId && emailMetadata.isInternal) {
+      // For internal email issues, prefer the creator (email sender)
+      assigneeId = creatorId;
+      assigneeEmail = emailMetadata.assignToEmail;
+      console.log(`  👤 Auto-assigning to creator (email): ${creatorId}`);
     } else if (emailMetadata.assignToEmail) {
       // For email issues, check if sender email belongs to a Linear user
       const userId = await getUserIdByEmail(emailMetadata.assignToEmail);
       if (userId) {
         assigneeEmail = emailMetadata.assignToEmail;
+        assigneeId = userId;
         console.log(`  👤 Auto-assigning to: ${assigneeEmail}`);
       }
     }

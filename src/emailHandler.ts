@@ -64,40 +64,32 @@ function prepareTicketData(
 }
 
 function buildTicketDescription(refinedContent: RefinedContent, emailData: EmailData): string {
-  const body = (refinedContent.description || '').trim();
-  const hasSummary = /##\s*Summary/i.test(body);
-  const hasActions = /##\s*(Action Items|Actions)/i.test(body);
+  const rawBody = (refinedContent.description || '').trim();
+  const hasSections = /##\s*Summary/i.test(rawBody) || /##\s*(Action Items|Actions)/i.test(rawBody);
+  const summary = refinedContent.summary?.trim();
+  const actionItems = (refinedContent.actionItems || []).filter(Boolean);
 
-  if (hasSummary || hasActions) {
-    return body;
+  const parts: string[] = [];
+
+  if (summary) {
+    parts.push('## Summary', summary, '');
   }
 
-  const descriptionParts: string[] = [];
-
-  if (refinedContent.summary) {
-    descriptionParts.push('## Summary');
-    descriptionParts.push(refinedContent.summary);
-    descriptionParts.push('');
-  }
-
-  const actionItems = refinedContent.actionItems || [];
   if (actionItems.length > 0) {
-    descriptionParts.push('## Action Items');
+    parts.push('## Actions');
     actionItems.forEach((item) => {
-      descriptionParts.push(`- [ ] ${item}`);
+      parts.push(`- [ ] ${item}`);
     });
-    descriptionParts.push('');
+    parts.push('');
   }
 
-  if (body) {
-    descriptionParts.push('## Details');
-    descriptionParts.push(body);
-    descriptionParts.push('');
+  if (!hasSections && rawBody && rawBody !== summary) {
+    parts.push('## Context', rawBody, '');
   }
 
-  if (descriptionParts.length === 0) {
-    return emailData.subject || '(No details provided)';
+  if (parts.length === 0) {
+    return rawBody || emailData.subject || '(No details provided)';
   }
 
-  return descriptionParts.join('\n').trim();
+  return parts.join('\n').trim();
 }
