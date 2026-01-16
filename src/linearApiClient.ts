@@ -139,6 +139,7 @@ export async function updateLinearIssue(
     priority?: number;
     assignee?: string;      // Email to look up
     assigneeId?: string;    // Direct user ID (for Slack-created issues)
+    state?: string;         // State name (e.g., "Backlog", "Todo")
   }
 ): Promise<{ success: boolean; error?: string }> {
   try {
@@ -178,7 +179,7 @@ export async function updateLinearIssue(
       }
     }
 
-    // Get issue to find team for labels
+    // Get issue to find team for labels and state
     const issueQuery = `
       query GetIssue($id: String!) {
         issue(id: $id) {
@@ -209,6 +210,14 @@ export async function updateLinearIssue(
       const labelIds = await getLabelIds(updates.labels, teamId);
       if (labelIds.length > 0) {
         input.labelIds = labelIds;
+      }
+    }
+
+    // Set state if provided (look up state ID by name)
+    if (updates.state && teamId) {
+      const stateId = await getStateId(updates.state, teamId);
+      if (stateId) {
+        input.stateId = stateId;
       }
     }
 
@@ -752,6 +761,50 @@ async function getLabelIds(labelNames: string[], teamId: string): Promise<string
   } catch (error) {
     console.error('Error fetching labels:', error);
     return [];
+  }
+}
+
+/**
+ * Get state ID by name for a team
+ */
+async function getStateId(stateName: string, teamId: string): Promise<string | null> {
+  const query = `
+    query($teamId: String!) {
+      team(id: $teamId) {
+        states {
+          nodes {
+            id
+            name
+          }
+        }
+      }
+    }
+  `;
+
+  try {
+    const response = await fetch(LINEAR_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: LINEAR_API_KEY,
+      },
+      body: JSON.stringify({
+        query,
+        variables: { teamId },
+      }),
+    });
+
+    const result = await response.json() as { data?: { team?: { states?: { nodes?: Array<{ id: string; name: string }> } } } };
+    const states = result.data?.team?.states?.nodes || [];
+
+    const state = states.find(
+      (s) => s.name.toLowerCase() === stateName.toLowerCase()
+    );
+
+    return state?.id || null;
+  } catch (error) {
+    console.error('Error fetching states:', error);
+    return null;
   }
 }
 

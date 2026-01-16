@@ -409,7 +409,7 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
       }
     }
 
-    // Update the Linear issue
+    // Update the Linear issue (move out of Triage to Backlog)
     const updateResult = await updateLinearIssue(issueId, {
       title: result.ticketData.title,
       description: finalDescription,
@@ -417,6 +417,7 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
       priority: result.ticketData.priority,
       assignee: assigneeEmail,
       assigneeId: assigneeId,
+      state: 'Backlog',  // Move from Triage to Backlog after refinement
     });
 
     // Add to target project (not client project anymore)
