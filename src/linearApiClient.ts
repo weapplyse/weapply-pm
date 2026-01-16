@@ -137,7 +137,8 @@ export async function updateLinearIssue(
     description?: string;
     labels?: string[];
     priority?: number;
-    assignee?: string;
+    assignee?: string;      // Email to look up
+    assigneeId?: string;    // Direct user ID (for Slack-created issues)
   }
 ): Promise<{ success: boolean; error?: string }> {
   try {
@@ -167,7 +168,10 @@ export async function updateLinearIssue(
       input.priority = updates.priority;
     }
 
-    if (updates.assignee) {
+    // Assignee: prefer direct ID, fall back to email lookup
+    if (updates.assigneeId) {
+      input.assigneeId = updates.assigneeId;
+    } else if (updates.assignee) {
       const assigneeId = await getUserId(updates.assignee);
       if (assigneeId) {
         input.assigneeId = assigneeId;

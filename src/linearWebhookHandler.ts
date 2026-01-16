@@ -195,12 +195,20 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
     const issueId = webhookData.data?.id;
     const issueIdentifier = webhookData.data?.identifier;
     const issueTitle = webhookData.data?.title;
+    const creatorId = webhookData.data?.creatorId;
+    const currentProjectId = webhookData.data?.projectId;
 
     if (!issueId) {
       return res.status(400).json({ error: 'No issue ID in webhook payload' });
     }
 
+    // Check if issue is from Slack Intake project (created via Slack integration)
+    const isFromSlack = currentProjectId === PROJECT_IDS.SLACK_INTAKE;
+
     console.log(`\n📨 Processing issue ${issueIdentifier}: "${issueTitle}"`);
+    if (isFromSlack) {
+      console.log('💬 Issue created from Slack');
+    }
 
     // Fetch full issue details
     const issueResult = await getIssue(issueId);
@@ -232,11 +240,11 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
       issue.title.includes('FW:') ||
       issue.title.includes('Fw:');
 
-    // For manual refinement, always proceed regardless of source
-    if (!isManualRefinement && !isFromEmail) {
-      console.log('ℹ️  Issue not from email, skipping refinement');
+    // For manual refinement or Slack issues, always proceed regardless of email patterns
+    if (!isManualRefinement && !isFromEmail && !isFromSlack) {
+      console.log('ℹ️  Issue not from email or Slack, skipping refinement');
       return res.status(200).json({ 
-        message: 'Skipped - issue not created from email',
+        message: 'Skipped - issue not created from email or Slack',
         issueIdentifier 
       });
     }
@@ -300,21 +308,31 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
     }
 
     // Determine target project based on routing
-    const targetProjectId = getTargetProjectId(emailMetadata, hasClientLabel);
+    // For Slack issues, keep them in Slack Intake (don't re-route)
+    const targetProjectId = isFromSlack 
+      ? PROJECT_IDS.SLACK_INTAKE 
+      : getTargetProjectId(emailMetadata, hasClientLabel);
     const projectNames: Record<string, string> = {
       [PROJECT_IDS.MAIL_INBOX]: 'Mail Inbox',
       [PROJECT_IDS.CLIENTS]: 'Clients',
       [PROJECT_IDS.EXTERNAL]: 'External',
       [PROJECT_IDS.REFINE_QUEUE]: 'Refine Queue',
+      [PROJECT_IDS.SLACK_INTAKE]: 'Slack Intake',
     };
     console.log(`  📁 Target project: ${projectNames[targetProjectId] || targetProjectId}`);
 
-    // Add source labels based on email routing
-    const sourceLabels = getSourceLabels(emailMetadata);
+    // Add source labels based on source type
+    let sourceLabels: string[];
+    if (isFromSlack) {
+      // Slack-created issues get "Slack" label instead of email routing labels
+      sourceLabels = ['Slack'];
+    } else {
+      sourceLabels = getSourceLabels(emailMetadata);
+    }
     
     // Filter out any source labels that AI might have suggested (we add them ourselves)
     const aiLabels = (result.ticketData.labels || []).filter(l => 
-      !['Email', 'Internal Forward', 'External Direct', 'Forwarded', 'Internal', 'Unknown Sender'].includes(l) &&
+      !['Email', 'Internal Forward', 'External Direct', 'Forwarded', 'Internal', 'Unknown Sender', 'Slack'].includes(l) &&
       !l.startsWith('Client:') // Don't duplicate client labels
     );
     
@@ -339,10 +357,16 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
       console.log(`  Attachments: ${attachmentAnalyses.length}`);
     }
 
-    // Determine assignee based on email routing
+    // Determine assignee based on source
+    let assigneeId: string | undefined;
     let assigneeEmail: string | undefined;
-    if (emailMetadata.assignToEmail) {
-      // Check if this email belongs to a Linear user
+    
+    if (isFromSlack && creatorId) {
+      // For Slack issues, assign to the creator
+      assigneeId = creatorId;
+      console.log(`  👤 Auto-assigning to creator (Slack): ${creatorId}`);
+    } else if (emailMetadata.assignToEmail) {
+      // For email issues, check if sender email belongs to a Linear user
       const userId = await getUserIdByEmail(emailMetadata.assignToEmail);
       if (userId) {
         assigneeEmail = emailMetadata.assignToEmail;
@@ -357,6 +381,7 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
       labels: uniqueLabels,
       priority: result.ticketData.priority,
       assignee: assigneeEmail,
+      assigneeId: assigneeId,
     });
 
     // Add to target project (not client project anymore)
