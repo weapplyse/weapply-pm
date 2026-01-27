@@ -36,6 +36,7 @@ export interface RefinedContent {
   suggestedLabels?: string[];
   suggestedPriority?: number;
   suggestedAssignee?: string;
+  suggestedClient?: string;  // Client/company name detected from content
   actionItems?: string[];
   urgencyAnalysis?: UrgencyAnalysis;
 }

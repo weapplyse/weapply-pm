@@ -69,7 +69,7 @@ OPENAI_API_KEY=sk-...           # GPT-4o for refinement
 LINEAR_API_KEY=lin_api_...      # Linear API access
 LINEAR_WEBHOOK_SECRET=...       # Webhook signature verification
 SLACK_WEBHOOK_URL=...           # Urgent ticket alerts (optional)
-DEFAULT_LINEAR_TEAM=WeTest
+DEFAULT_LINEAR_TEAM=WeApply - AI Tickets
 ENABLE_AI_REFINEMENT=true
 ```
 
@@ -81,7 +81,7 @@ ENABLE_AI_REFINEMENT=true
 **Webhook:**
 - URL: `https://pm.weapply.se/webhook/linear-webhook`
 - Events: Issue created, Issue updated
-- Team: WeTest
+- Team: WeApply - AI Tickets
 
 ### 3. Run
 

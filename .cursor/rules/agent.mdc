@@ -12,7 +12,7 @@ AI-powered email → Linear ticket refinement system.
 
 | Item | Value |
 |------|-------|
-| Team | WeTest |
+| Team | WeApply - AI Tickets |
 | Project | Linear Automation |
 | Assignee | pelle@weapply.se |
 | Service | weapply-pm (systemd) |
@@ -76,7 +76,7 @@ Only create Linear issues when user explicitly asks for a feature/task.
 Only commit changes when the user explicitly asks.
 
 ```
-Team: WeTest
+Team: WeApply - AI Tickets
 Project: Linear Automation
 Labels: [Type] + [Tech area]
 ```

@@ -13,8 +13,7 @@ export const config = {
   // Linear API
   linearApiKey: process.env.LINEAR_API_KEY || '',
   linearWebhookSecret: process.env.LINEAR_WEBHOOK_SECRET || '',
-  defaultLinearTeam: process.env.DEFAULT_LINEAR_TEAM || 'WeTest',
-  defaultLinearProject: process.env.DEFAULT_LINEAR_PROJECT || '',
+  defaultLinearTeam: process.env.DEFAULT_LINEAR_TEAM || 'WeApply - AI Tickets',
   
   // Slack notifications
   slackWebhookUrl: process.env.SLACK_WEBHOOK_URL || '',

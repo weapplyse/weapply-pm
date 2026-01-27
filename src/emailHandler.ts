@@ -51,13 +51,12 @@ export async function processEmail(
 function prepareTicketData(
   refinedContent: RefinedContent,
   emailData: EmailData,
-  options?: { team?: string; project?: string }
+  options?: { team?: string }
 ): LinearTicketData {
   return {
     title: refinedContent.title || emailData.subject,
     description: buildTicketDescription(refinedContent, emailData),
     team: options?.team || config.defaultLinearTeam,
-    project: options?.project || config.defaultLinearProject || undefined,
     labels: refinedContent.suggestedLabels,
     priority: refinedContent.suggestedPriority,
   };

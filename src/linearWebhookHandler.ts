@@ -503,6 +503,11 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
     }
 
     // Check if this looks like an email-created issue or needs refinement
+    // Also check attachments - Linear email intake stores sender email in attachment subtitle
+    const hasEmailAttachment = issue.attachments?.some(att => 
+      att.subtitle?.includes('@') && !att.subtitle?.includes('linear.app')
+    ) || false;
+    
     const isFromEmail = 
       emailContent.includes('From:') ||
       emailContent.includes('mailto:') ||
@@ -510,7 +515,12 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
       issue.title.includes('Fwd:') ||
       issue.title.includes('Re:') ||
       issue.title.includes('FW:') ||
-      issue.title.includes('Fw:');
+      issue.title.includes('Fw:') ||
+      hasEmailAttachment;  // Linear email intake indicator
+    
+    if (hasEmailAttachment) {
+      console.log('📧 Detected email via attachment subtitle');
+    }
 
     // For manual refinement or Slack issues, always proceed regardless of email patterns
     if (!isManualRefinement && !isFromEmail && !isFromSlack) {
@@ -528,7 +538,29 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
     // Extract email metadata for routing
     let emailMetadata = extractEmailMetadata(emailContent, issue.title);
     
-    // Fallback: If sender extraction failed but we have creatorId, look up creator info
+    // Fallback 1: If sender extraction failed, check attachment subtitle (Linear email intake)
+    if (!emailMetadata.senderEmail && hasEmailAttachment) {
+      const emailAttachment = issue.attachments?.find(att => 
+        att.subtitle?.includes('@') && !att.subtitle?.includes('linear.app')
+      );
+      if (emailAttachment?.subtitle) {
+        const attachmentEmail = emailAttachment.subtitle.trim().toLowerCase();
+        const attachmentDomain = attachmentEmail.split('@')[1] || '';
+        const isAttachmentInternal = attachmentDomain === 'weapply.se';
+        
+        emailMetadata = {
+          ...emailMetadata,
+          senderEmail: attachmentEmail,
+          senderDomain: attachmentDomain,
+          isInternal: isAttachmentInternal,
+          isExternalDirect: !isAttachmentInternal && !emailMetadata.isForwarded,
+          assignToEmail: isAttachmentInternal ? attachmentEmail : undefined,
+        };
+        console.log(`📧 Sender from attachment: ${attachmentEmail}`);
+      }
+    }
+    
+    // Fallback 2: If sender extraction failed but we have creatorId, look up creator info
     // This handles cases where the email content doesn't have proper From: headers
     if (!emailMetadata.senderEmail && creatorId) {
       console.log('📧 Sender extraction failed, looking up creator...');
@@ -584,23 +616,33 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
 
     const result = await processEmailData(emailData, {
       team: config.defaultLinearTeam,
-      project: config.defaultLinearProject,
     });
 
     // Handle client labels (instead of client projects)
+    // Priority: 1) External sender domain, 2) AI-detected client from content
     let hasClientLabel = false;
     let clientLabelName: string | undefined;
     const additionalLabels: string[] = [];
     
     if (emailMetadata.clientDomain && shouldCreateClientLabel(emailMetadata.clientDomain)) {
+      // External sender with business domain
       clientLabelName = getClientLabelName(emailMetadata.clientDomain);
       
-      // Check if label exists or create it
       const labelResult = await getOrCreateClientLabel(clientLabelName);
       if (labelResult) {
         hasClientLabel = true;
         additionalLabels.push(clientLabelName);
-        console.log(`  🏷️  Client label: ${clientLabelName} (${labelResult.created ? 'created' : 'existing'})`);
+        console.log(`  🏷️  Client label (domain): ${clientLabelName} (${labelResult.created ? 'created' : 'existing'})`);
+      }
+    } else if (result.refinedContent.suggestedClient) {
+      // AI detected a client name from internal email content
+      clientLabelName = `Client: ${result.refinedContent.suggestedClient}`;
+      
+      const labelResult = await getOrCreateClientLabel(clientLabelName);
+      if (labelResult) {
+        hasClientLabel = true;
+        additionalLabels.push(clientLabelName);
+        console.log(`  🏷️  Client label (AI): ${clientLabelName} (${labelResult.created ? 'created' : 'existing'})`);
       }
     } else if (emailMetadata.isExternalDirect || (emailMetadata.isForwarded && !emailMetadata.isInternalForward)) {
       // External sender without a client domain (e.g., gmail) - add Unknown Sender label
@@ -610,9 +652,16 @@ router.post('/linear-webhook', async (req: Request, res: Response) => {
 
     // Determine target project based on routing
     // For Slack issues, keep them in Slack Intake (don't re-route)
-    const targetProjectId = isFromSlack 
-      ? PROJECT_IDS.SLACK_INTAKE 
-      : getTargetProjectId(emailMetadata, hasClientLabel);
+    // For emails with detected client (external OR AI-detected), route to Clients
+    let targetProjectId: string;
+    if (isFromSlack) {
+      targetProjectId = PROJECT_IDS.SLACK_INTAKE;
+    } else if (hasClientLabel) {
+      // Has a client label (from domain or AI detection) -> Clients project
+      targetProjectId = PROJECT_IDS.CLIENTS;
+    } else {
+      targetProjectId = getTargetProjectId(emailMetadata, hasClientLabel);
+    }
     const projectNames: Record<string, string> = {
       [PROJECT_IDS.MAIL_INBOX]: 'Mail Inbox',
       [PROJECT_IDS.CLIENTS]: 'Clients',

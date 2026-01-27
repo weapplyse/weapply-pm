@@ -12,7 +12,7 @@ Only create issues when explicitly requested.
 
 ```json
 {
-  "team": "WeTest",
+  "team": "WeApply - AI Tickets",
   "project": "Linear Automation",
   "assignee": "pelle@weapply.se",
   "labels": ["<Type>", "<Tech>", "<Dept (if applicable)>"]

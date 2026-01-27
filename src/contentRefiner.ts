@@ -198,6 +198,14 @@ ${urgencyContext}
 - **3 (Normal)**: Standard requests, general work (default)
 - **4 (Low)**: Nice to have, future consideration, internal housekeeping
 
+## CLIENT DETECTION
+**IMPORTANT**: If the email mentions a specific client, company, or project name that work is being done for, extract it.
+- Look for company names, project names, or client references in the content
+- Examples: "Vroff website", "Maskrosbarn billing", "ASPACE project"
+- Return ONLY the client/company name (e.g., "Vroff", "Maskrosbarn", "ASPACE")
+- If no specific client is mentioned, leave empty ""
+- Do NOT include generic terms like "client", "customer", "project"
+
 ---
 
 Respond with valid JSON:
@@ -208,7 +216,8 @@ Respond with valid JSON:
   "suggestedLabels": ["Meeting", "Sales"],
   "suggestedPriority": 3,
   "actionItems": ["Action 1", "Action 2"],
-  "suggestedAssignee": ""
+  "suggestedAssignee": "",
+  "suggestedClient": "ClientName or empty"
 }`;
 
   try {
@@ -253,6 +262,11 @@ Keep it scannable. Less is more.`,
       console.log(`🔺 Priority elevated from ${getPriorityName(aiPriority)} to ${getPriorityName(finalPriority)} due to urgency detection`);
     }
     
+    // Log detected client if any
+    if (refined.suggestedClient) {
+      console.log(`🏢 Detected client: ${refined.suggestedClient}`);
+    }
+    
     // Ensure all fields are present
     return {
       title: refined.title || email.subject,
@@ -262,6 +276,7 @@ Keep it scannable. Less is more.`,
       suggestedPriority: finalPriority,
       actionItems: refined.actionItems || [],
       suggestedAssignee: refined.suggestedAssignee || undefined,
+      suggestedClient: refined.suggestedClient || undefined,
       urgencyAnalysis, // Include for reference
     };
   } catch (error) {
